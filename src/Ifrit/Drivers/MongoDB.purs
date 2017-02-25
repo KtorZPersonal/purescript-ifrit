@@ -24,18 +24,23 @@ class Ingest stage where
 -- TYPES
 
 data Expression
-  = ValueStr String
-  | ValueInt Int
+  = ValueString String
+  | ValueBoolean Boolean
+  | ValueNumber Number
   | Object (StrMap Expression)
   | List (List Expression)
 
 
 str :: String -> Expression
-str s = ValueStr s
+str s = ValueString s
 
 
-int :: Int -> Expression
-int i = ValueInt i
+bool :: Boolean -> Expression
+bool b = ValueBoolean b
+
+
+number :: Number -> Expression
+number n = ValueNumber n
 
 
 object :: Array (Tuple String Expression) -> Expression
@@ -54,9 +59,11 @@ infix 7 Tuple as :-
 
 -- UTILITIES
 
-selector :: Terminal -> String
-selector (Field s) = "$$this." <> s
--- selector (ConstantStr str) = str
+selector :: Terminal -> Expression
+selector (Field f) = str ("$$this." <> f)
+selector (ConstantString c) = str c
+selector (ConstantBoolean c) = bool c
+selector (ConstantNumber c) = number c
 
 
 -- INSTANCES :: ingest
@@ -74,12 +81,12 @@ instance ingestMapOperator :: Ingest Map where
       src' = ingest src
       sum = list
         [ str "$$value"
-        , str $ selector target
+        , selector target
         ]
       reduce = object
         [ "input" :- src'
-        , "initialValue" :- (int 0)
-        , "in" :- (singleton "$sum" sum)
+        , "initialValue" :- (number 0.0)
+        , "in" :- (singleton "$add" sum)
         ]
       divide = list
         [ singleton "$reduce" reduce
@@ -96,9 +103,14 @@ instance ingestReduce :: Ingest Reduce where
 
 instance ingestTerminal :: Ingest Terminal where
   ingest (Field f) =
-    ValueStr $ "$" <> f
-  -- ingest (ConstantStr c) =
-  --   ValueStr c
+    ValueString $ "$" <> f
+  ingest (ConstantString c) =
+    ValueString c
+  ingest (ConstantBoolean c) =
+    ValueBoolean c
+  ingest (ConstantNumber c) =
+    ValueNumber c
+
 
 instance ingestArray :: Ingest a => Ingest (Array a) where
   ingest =
@@ -108,10 +120,12 @@ instance ingestArray :: Ingest a => Ingest (Array a) where
 
 instance encodeJsonExpression :: (EncodeJson String, EncodeJson Int, EncodeJson (StrMap Json), EncodeJson (List Json))
   => EncodeJson Expression where
-  encodeJson (ValueStr s) =
+  encodeJson (ValueString s) =
     encodeJson s
-  encodeJson (ValueInt i) =
-    encodeJson i
+  encodeJson (ValueBoolean b) =
+    encodeJson b
+  encodeJson (ValueNumber n) =
+    encodeJson n
   encodeJson (Object m) =
     encodeJson $ encodeJson <$> m
   encodeJson (List xs) =

@@ -1,7 +1,7 @@
 module Ifrit.Core where
 
 import Prelude
-import Data.Argonaut.Core(Json, stringify)
+import Data.Argonaut.Core(Json, stringify, isString, isBoolean, isNumber)
 import Data.Argonaut.Decode(class DecodeJson, decodeJson)
 import Data.Argonaut.Encode(class EncodeJson, encodeJson)
 import Data.Either(Either(..))
@@ -15,6 +15,9 @@ import Ifrit.Decoder(decode2, decode3)
 
 data Terminal
   = Field String
+  | ConstantString String
+  | ConstantBoolean Boolean
+  | ConstantNumber Number
 
 data Map
   = Project Terminal
@@ -61,6 +64,12 @@ instance decodeJsonMap :: DecodeJson String => DecodeJson Map where
                <*> decodeJson op
       decoder (Just "field") Nothing (Just f) =
         Field >>> Project <$> decodeJson f
+      decoder (Just "constant") Nothing (Just f) | isNumber f =
+        ConstantNumber >>> Project <$> decodeJson f
+      decoder (Just "constant") Nothing (Just f) | isBoolean f =
+        ConstantBoolean >>> Project <$> decodeJson f
+      decoder (Just "constant") Nothing (Just f) | isString f =
+        ConstantString >>> Project <$> decodeJson f
       decoder _ _ _ =
         Left "Invalid Map Operator"
     in
@@ -75,18 +84,24 @@ instance decodeJsonStage :: (DecodeJson (StrMap Json), DecodeJson String)
         Map <$> traverse decodeJson m
       decoder _ _ =
         Left "Invalid Stage"
-    in
+     in
       decode2 "@" "=" decoder
 
 -- INSTANCE ENCODEJSON
 
 instance encodeJsonTerminal :: EncodeJson (StrMap String) => EncodeJson Terminal where
-  encodeJson (Field f) =
-    encodeJson $ fromFoldable
-      [ Tuple "@" "field"
-      , Tuple "=" f
-      ]
-
+  encodeJson term =
+    let
+      encode :: forall a. EncodeJson a => a -> Json
+      encode x = encodeJson $ fromFoldable
+        [ Tuple "@" (encodeJson "field")
+        , Tuple "=" (encodeJson x)
+        ]
+    in case term of
+      Field f -> encode f
+      ConstantString c -> encode c
+      ConstantBoolean c -> encode c
+      ConstantNumber c -> encode c
 
 instance encodeJsonReduce :: (EncodeJson (StrMap String), EncodeJson Terminal) => EncodeJson Reduce where
   encodeJson (Avg t) =
