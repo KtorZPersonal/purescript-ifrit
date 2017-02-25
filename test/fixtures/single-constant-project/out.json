@@ -1,0 +1,7 @@
+[
+    {
+        "$project": {
+            "spell": "firaga"
+        }
+    }
+]
