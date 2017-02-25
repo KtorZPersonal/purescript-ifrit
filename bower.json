@@ -3,10 +3,10 @@
   "authors": [
     "KtorZ <matthias.benkort@gmail.com>"
   ],
-  "description": "A request transpiler for NoSQL aggregation",
+  "description": "A NoSQL-like request transpiler for data aggregation",
   "main": "",
-  "license": "MIT",
-  "homepage": "",
+  "license": "MPL 2.0",
+  "homepage": "https://ktorz.github.io/ifrit",
   "ignore": [
     "**/.*",
     "node_modules",
@@ -15,12 +15,33 @@
     "tests"
   ],
   "dependencies": {
-    "purescript-prelude": "^2.3.0",
-    "purescript-either": "^2.1.0",
-    "purescript-argonaut-core": "^2.0.1",
-    "purescript-argonaut-codecs": "^2.0.0"
+    "purescript-argonaut-codecs": "2.0.0",
+    "purescript-argonaut-core": "2.0.1",
+    "purescript-either": "2.1.0",
+    "purescript-foldable-traversable": "2.2.0",
+    "purescript-lists": "3.4.0",
+    "purescript-maps": "2.1.2",
+    "purescript-maybe": "2.0.1",
+    "purescript-prelude": "2.3.0",
+    "purescript-tuples": "3.1.0"
   },
   "devDependencies": {
-    "purescript-psci-support": "^2.0.0"
+    "purescript-aff": "2.0.3",
+    "purescript-node-fs": "3.0.0",
+    "purescript-node-path": "1.0.0",
+    "purescript-node-process": "3.0.0",
+    "purescript-pairs": "4.0.0",
+    "purescript-psci-support": "2.0.0",
+    "purescript-test-unit": "10.1.0"
+  },
+  "resolutions": {
+    "purescript-bifunctors": "2.0.0",
+    "purescript-control": "2.0.0",
+    "purescript-foldable-traversable": "2.2.0",
+    "purescript-invariant": "2.0.0",
+    "purescript-maybe": "2.0.1",
+    "purescript-monoid": "2.0.0",
+    "purescript-prelude": "2.3.0",
+    "purescript-tuples": "3.1.0"
   }
 }
