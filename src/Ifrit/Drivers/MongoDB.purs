@@ -1,5 +1,5 @@
 module Ifrit.Drivers.MongoDB
-  ( class Pipeline
+  ( class Ingest
   , Expression(..)
   , ingest
   ) where
@@ -17,7 +17,7 @@ import Ifrit.Core(Stage(..), Reduce(..), Map(..), Terminal(..))
 
 -- CLASSES
 
-class Pipeline stage where
+class Ingest stage where
   ingest :: stage -> Expression
 
 
@@ -59,14 +59,14 @@ selector (Field s) = "$$this." <> s
 -- selector (ConstantStr str) = str
 
 
--- INSTANCES :: PIPELINE
+-- INSTANCES :: ingest
 
-instance pipelineStage :: Pipeline Stage where
+instance ingestStage :: Ingest Stage where
   ingest (Map m) =
     singleton "$project" $ Object (map ingest m)
 
 
-instance pipelineMapOperator :: Pipeline Map where
+instance ingestMapOperator :: Ingest Map where
   ingest (Project t) =
     ingest t
   ingest (Inject src (Avg target)) =
@@ -89,17 +89,20 @@ instance pipelineMapOperator :: Pipeline Map where
       singleton "$divide" divide
 
 
-instance pipelineReduceOperator :: Pipeline Reduce where
+instance ingestReduce :: Ingest Reduce where
   ingest (Avg t) =
     singleton "$avg" $ ingest t
 
 
-instance pipelineTermOperator :: Pipeline Terminal where
+instance ingestTerminal :: Ingest Terminal where
   ingest (Field f) =
     ValueStr $ "$" <> f
   -- ingest (ConstantStr c) =
   --   ValueStr c
 
+instance ingestArray :: Ingest a => Ingest (Array a) where
+  ingest =
+    L.fromFoldable >>> map ingest >>> List
 
 -- INSTANCE :: ENCODEJSON
 

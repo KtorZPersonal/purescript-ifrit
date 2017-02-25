@@ -12,6 +12,7 @@ import Data.Tuple(Tuple(..))
 import Ifrit.Decoder(decode2, decode3)
 
 -- TYPES
+
 data Terminal
   = Field String
 
@@ -25,6 +26,8 @@ data Reduce
 data Stage
   = Map (StrMap Map)
 
+type Pipeline =
+  Array Stage
 
 -- INSTANCE DECODEJSON
 
@@ -75,7 +78,6 @@ instance decodeJsonStage :: (DecodeJson (StrMap Json), DecodeJson String)
     in
       decode2 "@" "=" decoder
 
-
 -- INSTANCE ENCODEJSON
 
 instance encodeJsonTerminal :: EncodeJson (StrMap String) => EncodeJson Terminal where
@@ -116,7 +118,6 @@ instance encodeJsonStage :: (EncodeJson (StrMap String), EncodeJson Map)
       [ Tuple "@" (encodeJson "map")
       , Tuple "=" (encodeJson m)
       ]
-
 
 -- INSTANCE SHOW
 
