@@ -55,3 +55,4 @@ main = runTest do
   suite "stage :: map" do
     step "single-field-project"
     step "single-constant-project"
+    step "avg-nested-array"
