@@ -7,7 +7,7 @@ Ifrit ![travis](https://travis-ci.org/KtorZ/ifrit.svg?style=flat-square) ![licen
 
 # Todo
 
-- Add [schema](json-schema.org) validations to ensure type consistency
+- ~~Add [schema](json-schema.org) validations to ensure type consistency~~
 - Add `reduce` stage
 - Add `min` reduce Operator
 - Add `max` reduce Operator
