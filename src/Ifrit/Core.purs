@@ -1,9 +1,10 @@
 module Ifrit.Core where
 
 import Prelude
-import Data.Argonaut.Core(Json, stringify, isString, isBoolean, isNumber)
+import Data.Argonaut.Core(Json, stringify, isString, isBoolean, isNumber, foldJson)
 import Data.Argonaut.Decode(class DecodeJson, decodeJson)
 import Data.Argonaut.Encode(class EncodeJson, encodeJson)
+import Data.Array(head, length)
 import Data.Either(Either(..))
 import Data.Maybe(Maybe(..))
 import Data.StrMap(StrMap, fromFoldable)
@@ -31,6 +32,13 @@ data Stage
 
 type Pipeline =
   Array Stage
+
+data JsonSchema
+  = JObject (StrMap JsonSchema)
+  | JArray JsonSchema
+  | JString
+  | JNumber
+  | JBoolean
 
 -- INSTANCE DECODEJSON
 
@@ -87,6 +95,37 @@ instance decodeJsonStage :: (DecodeJson (StrMap Json), DecodeJson String)
      in
       decode2 "@" "=" decoder
 
+
+instance decodeJsonJsonSchema :: DecodeJson JsonSchema where
+  decodeJson =
+    let
+      decodeNull _ =
+        Left "can't decode null to schema"
+      decodeBoolean _ =
+        Left "can't decode boolean to schema"
+      decodeNumber _ =
+        Left "can't decode number to schema"
+      decodeString "string" =
+        Right JString
+      decodeString "number" =
+        Right JNumber
+      decodeString "boolean" =
+        Right JBoolean
+      decodeString s =
+        Left ("can't decode type: invalid provided type: " <> s)
+      decodeArray xs =
+        if length xs /= 1
+        then Left "can't decode array: exactly one element is expected"
+        else case head xs of
+          Nothing ->
+            Left "can't decode array: exactly one element is expected"
+          Just schema ->
+            JArray <$> decodeJson schema
+      decodeObject obj = JObject <$> traverse decodeJson obj
+    in
+      foldJson decodeNull decodeBoolean decodeNumber decodeString decodeArray decodeObject
+
+
 -- INSTANCE ENCODEJSON
 
 instance encodeJsonTerminal :: EncodeJson (StrMap String) => EncodeJson Terminal where
@@ -134,6 +173,19 @@ instance encodeJsonStage :: (EncodeJson (StrMap String), EncodeJson Map)
       , Tuple "=" (encodeJson m)
       ]
 
+
+instance encodeJsonJsonSchema :: EncodeJson JsonSchema where
+  encodeJson (JObject schema) =
+    encodeJson $ map encodeJson schema
+  encodeJson (JArray schema) =
+    encodeJson [encodeJson schema]
+  encodeJson JNumber =
+    encodeJson "number"
+  encodeJson JString =
+    encodeJson "string"
+  encodeJson JBoolean =
+    encodeJson "boolean"
+
 -- INSTANCE SHOW
 
 instance showTerminal :: EncodeJson Terminal => Show Terminal where
@@ -149,4 +201,8 @@ instance showMap :: EncodeJson Map => Show Map where
 
 
 instance showStage :: EncodeJson Stage => Show Stage  where
+  show = encodeJson >>> stringify
+
+
+instance showJsonSchema :: EncodeJson JsonSchema => Show JsonSchema where
   show = encodeJson >>> stringify
