@@ -1,11 +1,17 @@
-[
-    {
-        "@": "map",
-        "=": {
-            "spell": {
-                "@": "constant",
-                "=": "firaga"
-            }
-        }
-    }
-]
+{
+  "schema": {
+    "name": "string",
+    "class": "string"
+  },
+  "pipeline": [
+      {
+          "@": "map",
+          "=": {
+              "spell": {
+                  "@": "constant",
+                  "=": "firaga"
+              }
+          }
+      }
+  ]
+}

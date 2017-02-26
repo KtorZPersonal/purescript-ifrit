@@ -1,11 +1,17 @@
-[
+{
+  "schema": {
+    "name": "string",
+    "spell": "string"
+  },
+  "pipeline": [
     {
-        "@": "map",
-        "=": {
-            "spell": {
-                "@": "field",
-                "=": "spell"
-            }
+      "@": "map",
+      "=": {
+        "spell": {
+          "@": "field",
+          "=": "spell"
         }
+      }
     }
-]
+  ]
+}

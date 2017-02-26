@@ -5,15 +5,16 @@ import Prelude
 import Control.Monad.Aff(Aff)
 import Control.Monad.Eff.Class(liftEff)
 import Control.Monad.Eff.Exception(EXCEPTION)
-import Data.Argonaut.Core(Json)
-import Data.Argonaut.Decode(decodeJson)
+import Data.Argonaut.Core(Json, toObject)
+import Data.Argonaut.Decode(decodeJson, (.?))
 import Data.Argonaut.Encode(encodeJson)
 import Data.Argonaut.Parser(jsonParser)
 import Data.Either(Either(..))
+import Data.Maybe(Maybe(..))
 import Data.Pair(Pair(..))
 import Data.Traversable(traverse)
-import Ifrit.Core(Pipeline)
-import Ifrit.Drivers.MongoDB(ingest)
+import Ifrit.Core(Pipeline, JsonSchema)
+import Ifrit.Drivers.MongoDB(ingest, ingestType)
 import Node.Encoding (Encoding(..))
 import Node.FS(FS)
 import Node.Path(concat)
@@ -33,16 +34,45 @@ load fixture =
   in
     liftEff (traverse jsonParser <$> files)
 
-
 run :: forall e. Either String (Pair Json) -> Test e
 run (Left e) =
   failure e
 run (Right (Pair input output)) =
-  case (decodeJson input :: Either String Pipeline) of
-    Left e ->
-      failure e
-    Right pipeline ->
-      Assert.equal output $ (encodeJson $ ingest pipeline)
+  let
+    sIn :: Maybe (Either String JsonSchema)
+    sIn = (\obj -> do
+      schema <- obj .? "schema"
+      decodeJson schema
+    ) <$> toObject input
+
+    sOut :: Maybe (Either String Json)
+    sOut = (\obj -> obj .? "schema") <$> toObject output
+
+    pIn :: Maybe (Either String Pipeline)
+    pIn = (\obj -> do
+      schema <- obj .? "pipeline"
+      decodeJson schema
+    ) <$> toObject input
+
+    pOut :: Maybe (Either String Json)
+    pOut = (\obj -> obj .? "pipeline") <$> toObject output
+
+    assertSchema :: JsonSchema -> Pipeline -> Json -> Test e
+    assertSchema sIn pIn sOut =
+      case ingestType sIn pIn of
+      Left err ->
+        failure err
+      Right sOut' ->
+        Assert.equal sOut $ (encodeJson sOut')
+  in
+
+    case { sIn, sOut, pIn, pOut } of
+    { sIn: Just (Right sIn), sOut: Just (Right sOut), pIn: Just (Right pIn), pOut: Just (Right pOut) } ->
+      do
+        assertSchema sIn pIn sOut
+        Assert.equal pOut $ (encodeJson $ ingest pIn)
+    _ ->
+      failure "invalid provided fixture: expecting an object with 'schema' and 'pipeline' properties"
 
 
 step :: forall eff. String -> TestSuite (fs :: FS, err :: EXCEPTION | eff)

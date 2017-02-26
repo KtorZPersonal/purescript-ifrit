@@ -1,21 +1,30 @@
-[
+{
+  "schema": {
+    "name": "string",
+    "spells": [{
+      "power": "number",
+      "name": "string"
+    }]
+  },
+  "pipeline": [
     {
-        "@": "map",
-        "=": {
-            "avg_power": {
-                "@": "inject",
-                "[]": {
-                    "@": "field",
-                    "=": "spells"
-                },
-                "=": {
-                    "@": "avg",
-                    "=": {
-                        "@": "field",
-                        "=": "power"
-                    }
-                }
+      "@": "map",
+      "=": {
+        "avg_power": {
+          "@": "inject",
+          "[]": {
+            "@": "field",
+            "=": "spells"
+          },
+          "=": {
+            "@": "avg",
+            "=": {
+              "@": "field",
+              "=": "power"
             }
+          }
         }
+      }
     }
-]
+  ]
+}

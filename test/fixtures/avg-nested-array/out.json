@@ -1,22 +1,27 @@
-[
+{
+  "schema": {
+    "avg_power": "number"
+  },
+  "pipeline": [
     {
-        "$project": {
-            "avg_power": {
-                "$divide": [
-                    {
-                        "$reduce": {
-                            "input": "$spells",
-                            "initialValue": 0,
-                            "in": {
-                                "$add": ["$$value", "$$this.power"]
-                            }
-                        }
-                    },
-                    {
-                        "$size": "$spells"
-                    }
-                ]
+      "$project": {
+        "avg_power": {
+          "$divide": [
+            {
+              "$reduce": {
+                "input": "$spells",
+                "initialValue": 0,
+                "in": {
+                  "$add": ["$$value", "$$this.power"]
+                }
+              }
+            },
+            {
+              "$size": "$spells"
             }
+          ]
         }
+      }
     }
-]
+  ]
+}

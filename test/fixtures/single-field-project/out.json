@@ -1,7 +1,12 @@
-[
+{
+  "schema": {
+    "spell": "string"
+  },
+  "pipeline": [
     {
-        "$project": {
-            "spell": "$spell"
-        }
+      "$project": {
+        "spell": "$spell"
+      }
     }
-]
+  ]
+}
