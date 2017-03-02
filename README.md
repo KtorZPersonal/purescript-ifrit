@@ -2,7 +2,7 @@
     <img src="./.github/ifrit.png">
 </p>
 
-Ifrit ![travis](https://travis-ci.org/KtorZ/ifrit.svg?style=flat-square) ![license](https://img.shields.io/badge/License-MIT-blue.svg?style=flat-square)
+Ifrit ![travis](https://travis-ci.org/KtorZ/ifrit.svg?style=flat-square) ![license](https://img.shields.io/badge/License-MPL_2.0-blue.svg?style=flat-square)
 =========
 
 # Todo
