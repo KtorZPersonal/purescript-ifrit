@@ -9,7 +9,7 @@ Ifrit ![travis](https://travis-ci.org/KtorZ/ifrit.svg?style=flat-square) ![licen
 
 - ~~Add [schema](json-schema.org) validations to ensure type consistency~~
 - ~~Review test files and structure~~
-- Add `reduce` stage
+- ~~Add `reduce` stage~~
 - Add `min` reduce Operator
 - Add `max` reduce Operator
 - Add `count` reduce Operator
