@@ -1,0 +1,56 @@
+{
+    "schema_in": {
+        "class": "string",
+        "is_alive": "boolean",
+        "age": "number",
+        "spells": [{
+            "power": "number",
+            "name": "string"
+        }]
+    },
+
+    "pipeline_in": [
+        {
+            "@": "map",
+            "=": {
+                "projected_age": {
+                    "@": "field",
+                    "=": "age"
+                }
+            }
+        },
+        {
+            "@": "reduce",
+            "=": {
+                "avg_age": {
+                    "@": "avg",
+                    "=": {
+                        "@": "field",
+                        "=": "projected_age"
+                    }
+                }
+            }
+        }
+    ],
+
+
+
+    "schema_out": {
+        "avg_age": "number"
+    },
+
+    "pipeline_out": [
+        {
+            "$project": {
+                "projected_age": "$age"
+            }
+        },
+        {
+            "$group": {
+                "avg_age": {
+                    "$avg": "$projected_age"
+                }
+            }
+        }
+    ]
+}

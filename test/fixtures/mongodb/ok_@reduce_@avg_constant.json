@@ -1,0 +1,41 @@
+{
+    "schema_in": {
+        "class": "string",
+        "is_alive": "boolean",
+        "spells": [{
+            "power": "number",
+            "name": "string"
+        }]
+    },
+
+    "pipeline_in": [
+        {
+            "@": "reduce",
+            "=": {
+                "useless": {
+                    "@": "avg",
+                    "=": {
+                        "@": "constant",
+                        "=": 2
+                    }
+                }
+            }
+        }
+    ],
+
+
+
+    "schema_out": {
+        "useless": "number"
+    },
+
+    "pipeline_out": [
+        {
+            "$group": {
+                "useless": {
+                    "$avg": 2
+                }
+            }
+        }
+    ]
+}

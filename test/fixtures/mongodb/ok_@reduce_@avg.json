@@ -1,0 +1,42 @@
+{
+    "schema_in": {
+        "class": "string",
+        "is_alive": "boolean",
+        "age": "number",
+        "spells": [{
+            "power": "number",
+            "name": "string"
+        }]
+    },
+
+    "pipeline_in": [
+        {
+            "@": "reduce",
+            "=": {
+                "avg_age": {
+                    "@": "avg",
+                    "=": {
+                        "@": "field",
+                        "=": "age"
+                    }
+                }
+            }
+        }
+    ],
+
+
+
+    "schema_out": {
+        "avg_age": "number"
+    },
+
+    "pipeline_out": [
+        {
+            "$group": {
+                "avg_age": {
+                    "$avg": "$age"
+                }
+            }
+        }
+    ]
+}

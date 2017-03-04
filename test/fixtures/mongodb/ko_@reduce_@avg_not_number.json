@@ -1,0 +1,28 @@
+{
+    "schema_in": {
+        "age": "number",
+        "spells": [{
+            "power": "number",
+            "name": "string"
+        }]
+    },
+
+    "pipeline_in": [
+        {
+            "@": "reduce",
+            "=": {
+                "wtf": {
+                    "@": "avg",
+                    "=": {
+                        "@": "field",
+                        "=": "spells"
+                    }
+                }
+            }
+        }
+    ],
+
+
+
+    "error": "invalid operation @avg: target `=` isn't a number"
+}
