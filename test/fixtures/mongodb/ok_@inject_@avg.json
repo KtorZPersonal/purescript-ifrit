@@ -1,0 +1,63 @@
+{
+    "schema_in": {
+        "name": "string",
+        "spells": [
+            {
+                "power": "number",
+                "name": "string"
+            }
+        ]
+    },
+
+    "pipeline_in": [
+        {
+            "@": "map",
+            "=": {
+                "avg_power": {
+                    "@": "inject",
+                    "[]": {
+                        "@": "field",
+                        "=": "spells"
+                    },
+                    "=": {
+                        "@": "avg",
+                        "=": {
+                            "@": "field",
+                            "=": "power"
+                        }
+                    }
+                }
+            }
+        }
+    ],
+
+
+
+
+    "schema_out": {
+        "avg_power": "number"
+    },
+
+    "pipeline_out": [
+        {
+            "$project": {
+                "avg_power": {
+                    "$divide": [
+                        {
+                            "$reduce": {
+                                "input": "$spells",
+                                "initialValue": 0,
+                                "in": {
+                                    "$add": ["$$value", "$$this.power"]
+                                }
+                            }
+                        },
+                        {
+                            "$size": "$spells"
+                        }
+                    ]
+                }
+            }
+        }
+    ]
+}

@@ -1,0 +1,20 @@
+{
+    "schema_in": "string",
+
+    "pipeline_in": [
+        {
+            "@": "map",
+            "=": {
+                "age": {
+                    "@": "field",
+                    "=": "age"
+                }
+            }
+        }
+    ],
+
+
+
+
+    "error": "invalid operation @field: source isn't an object"
+}

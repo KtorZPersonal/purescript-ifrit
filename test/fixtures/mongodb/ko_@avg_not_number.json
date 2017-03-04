@@ -1,0 +1,34 @@
+{
+    "schema_in": {
+        "spells": [{
+            "name": "string",
+            "power": "number"
+        }]
+    },
+
+    "pipeline_in": [
+        {
+            "@": "map",
+            "=": {
+                "avg_name": {
+                    "@": "inject",
+                    "[]": {
+                        "@": "field",
+                        "=": "spells"
+                    },
+                    "=": {
+                        "@": "avg",
+                        "=": {
+                            "@": "field",
+                            "=": "name"
+                        }
+                    }
+                }
+            }
+        }
+    ],
+
+
+
+    "error": "invalid operation @avg: target `=` isn't a number"
+}
