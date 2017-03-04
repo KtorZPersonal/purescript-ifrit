@@ -110,6 +110,6 @@ main =
         Left err ->
           failure err
         Right tests' ->
-          foldl (\p s -> p *> s) success tests'
+          foldl (*>) success tests'
   in
     runTest mongodbSuite
