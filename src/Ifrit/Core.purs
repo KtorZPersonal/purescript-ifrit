@@ -46,9 +46,15 @@ instance decodeJsonTerminal :: DecodeJson String => DecodeJson Terminal where
   decodeJson =
     let
       decoder (Just "field") (Just f) =
-        Right $ Field f
+        Field <$> decodeJson f
+      decoder (Just "constant") (Just c) | isNumber c =
+        ConstantNumber <$> decodeJson c
+      decoder (Just "constant") (Just c) | isBoolean c =
+        ConstantBoolean <$> decodeJson c
+      decoder (Just "constant") (Just c) | isString c =
+        ConstantString <$> decodeJson c
       decoder _ _ =
-        Left "Invalid Term Operator"
+        Left "unknown terminal operator"
     in
       decode2 "@" "=" decoder
 
@@ -59,7 +65,7 @@ instance decodeJsonReduce :: DecodeJson String => DecodeJson Reduce where
       decoder (Just "avg") (Just f) =
         Avg <$> decodeJson f
       decoder _ _ =
-        Left "Invalid Reduce Operator"
+        Left "unknown reduce operator"
     in
       decode2 "@" "=" decoder
 
@@ -72,14 +78,14 @@ instance decodeJsonMap :: DecodeJson String => DecodeJson Map where
                <*> decodeJson op
       decoder (Just "field") Nothing (Just f) =
         Field >>> Project <$> decodeJson f
-      decoder (Just "constant") Nothing (Just f) | isNumber f =
-        ConstantNumber >>> Project <$> decodeJson f
-      decoder (Just "constant") Nothing (Just f) | isBoolean f =
-        ConstantBoolean >>> Project <$> decodeJson f
-      decoder (Just "constant") Nothing (Just f) | isString f =
-        ConstantString >>> Project <$> decodeJson f
+      decoder (Just "constant") Nothing (Just c) | isNumber c =
+        ConstantNumber >>> Project <$> decodeJson c
+      decoder (Just "constant") Nothing (Just c) | isBoolean c =
+        ConstantBoolean >>> Project <$> decodeJson c
+      decoder (Just "constant") Nothing (Just c) | isString c =
+        ConstantString >>> Project <$> decodeJson c
       decoder _ _ _ =
-        Left "Invalid Map Operator"
+        Left "unknown map operator"
     in
       decode3 "@" "[]" "=" decoder
 
@@ -91,7 +97,7 @@ instance decodeJsonStage :: (DecodeJson (StrMap Json), DecodeJson String)
       decoder (Just "map") (Just m) =
         Map <$> traverse decodeJson m
       decoder _ _ =
-        Left "Invalid Stage"
+        Left "unknown stage operator"
      in
       decode2 "@" "=" decoder
 

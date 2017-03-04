@@ -1,4 +1,4 @@
-module Ifrit.Drivers.Mongo where
+module Ifrit.Drivers.MongoDB where
 
 import Prelude
 
@@ -58,18 +58,21 @@ instance ingestTerminal :: Ingest Terminal where
             put schema'
             pure $ (encodeJson $ "$" <> f)
           Nothing ->
-            lift $ Left ("unexisting reference to @field=" <> f)
+            lift $ Left ("invalid operation @field: unreachable field `" <> f <> "`")
 
       ingest' _ (Field f) =
-        lift $ Left "invalid operation @field on non-object"
+        lift $ Left "invalid operation @field: source isn't an object"
 
       ingest' _ (ConstantString c) = do
+        put JString
         pure $ encodeJson c
 
       ingest' _ (ConstantNumber c) = do
+        put JNumber
         pure $ encodeJson c
 
       ingest' _ (ConstantBoolean c) = do
+        put JBoolean
         pure $ encodeJson c
     in do
       schema <- get
@@ -84,7 +87,7 @@ instance ingestReduce :: Ingest Reduce where
         put JNumber
         pure $ singleton "$avg" t'
       ingest' _ (Avg t) =
-        lift $ Left "invalid operation @avg on non-number"
+        lift $ Left "invalid operation @avg: target `=` isn't a number"
     in do
       schema <- get
       ingest' schema r
@@ -97,24 +100,32 @@ instance ingestMap :: Ingest Map where
         ingest t
       ingest' schema (Inject src (Avg target)) =
         case runStateT (ingest src) schema of
-        Right (Tuple src' schema') ->
-          let
-            sum = list
-              [ encodeJson "$$value"
-              , selector target
-              ]
-            reduce = object
-              [ "input" := src'
-              , "initialValue" := (encodeJson 0.0)
-              , "in" := (singleton "$add" sum)
-              ]
-            divide = list
-              [ singleton "$reduce" reduce
-              , singleton "$size" src'
-              ]
-          in do
-            put schema'
-            pure $ singleton "$divide" divide
+        Right (Tuple src' (JArray schemaSrc)) ->
+          case runStateT (ingest target) schemaSrc of
+            Right (Tuple _ JNumber) ->
+              let
+                sum = list
+                  [ encodeJson "$$value"
+                  , selector target
+                  ]
+                reduce = object
+                  [ "input" := src'
+                  , "initialValue" := (encodeJson 0.0)
+                  , "in" := (singleton "$add" sum)
+                  ]
+                divide = list
+                  [ singleton "$reduce" reduce
+                  , singleton "$size" src'
+                  ]
+              in do
+                put JNumber
+                pure $ singleton "$divide" divide
+            Right _ ->
+              lift $ Left "invalid operation @avg: target `=` isn't a number"
+            Left err ->
+              lift $ Left err
+        Right _ ->
+          lift $ Left "invalid operation @inject: list `[]` isn't an array"
         Left err ->
           lift $ Left err
     in do
