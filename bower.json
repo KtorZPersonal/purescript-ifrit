@@ -23,7 +23,8 @@
     "purescript-maps": "2.1.2",
     "purescript-maybe": "2.0.1",
     "purescript-prelude": "2.3.0",
-    "purescript-tuples": "3.1.0"
+    "purescript-tuples": "3.1.0",
+    "purescript-filterable": "^1.1.0"
   },
   "devDependencies": {
     "purescript-aff": "2.0.3",
