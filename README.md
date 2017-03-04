@@ -8,7 +8,7 @@ Ifrit ![travis](https://travis-ci.org/KtorZ/ifrit.svg?style=flat-square) ![licen
 # Todo
 
 - ~~Add [schema](json-schema.org) validations to ensure type consistency~~
-- Review test files and structure
+- ~~Review test files and structure~~
 - Add `reduce` stage
 - Add `min` reduce Operator
 - Add `max` reduce Operator
@@ -26,7 +26,8 @@ Ifrit ![travis](https://travis-ci.org/KtorZ/ifrit.svg?style=flat-square) ![licen
 - Add `mult` map Operator
 - Add `gt`, `lt`, `eq`, `neq`, `and`, `or` filter Operator
 - Add `?` filter option on the `map` stage
+- Review tests to show all executed fixtures
 
-# Thanks
+# Credits
 
 - Chibi Ifrit by [capsicum](http://capsicum.deviantart.com/)
