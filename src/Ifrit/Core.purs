@@ -29,6 +29,7 @@ data Reduce
 
 data Stage
   = Map (StrMap Map)
+  | Reduce (StrMap Reduce)
 
 type Pipeline =
   Array Stage
@@ -96,13 +97,15 @@ instance decodeJsonStage :: (DecodeJson (StrMap Json), DecodeJson String)
     let
       decoder (Just "map") (Just m) =
         Map <$> traverse decodeJson m
+      decoder (Just "reduce") (Just m) =
+        Reduce <$> traverse decodeJson m
       decoder _ _ =
         Left "unknown stage operator"
      in
       decode2 "@" "=" decoder
 
 
-instance decodeJsonJsonSchema :: DecodeJson JsonSchema where
+instance decodeJsonSchema :: DecodeJson JsonSchema where
   decodeJson =
     let
       decodeNull _ =
@@ -176,6 +179,11 @@ instance encodeJsonStage :: (EncodeJson (StrMap String), EncodeJson Map)
   encodeJson (Map m) =
     encodeJson $ fromFoldable
       [ Tuple "@" (encodeJson "map")
+      , Tuple "=" (encodeJson m)
+      ]
+  encodeJson (Reduce m) =
+    encodeJson $ fromFoldable
+      [ Tuple "@" (encodeJson "reduce")
       , Tuple "=" (encodeJson m)
       ]
 
