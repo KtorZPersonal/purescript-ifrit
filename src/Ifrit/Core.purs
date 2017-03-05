@@ -26,6 +26,8 @@ data Map
 
 data Reduce
   = Avg Terminal
+  | Min Terminal
+  | Max Terminal
 
 data Stage
   = Map (StrMap Map)
@@ -65,6 +67,10 @@ instance decodeJsonReduce :: DecodeJson String => DecodeJson Reduce where
     let
       decoder (Just "avg") (Just f) =
         Avg <$> decodeJson f
+      decoder (Just "min") (Just f) =
+        Min <$> decodeJson f
+      decoder (Just "max") (Just f) =
+        Max <$> decodeJson f
       decoder _ _ =
         Left "unknown reduce operator"
     in
@@ -155,6 +161,16 @@ instance encodeJsonReduce :: (EncodeJson (StrMap String), EncodeJson Terminal) =
   encodeJson (Avg t) =
     encodeJson $ fromFoldable
       [ Tuple "@" (encodeJson "avg")
+      , Tuple "=" (encodeJson t)
+      ]
+  encodeJson (Min t) =
+    encodeJson $ fromFoldable
+      [ Tuple "@" (encodeJson "min")
+      , Tuple "=" (encodeJson t)
+      ]
+  encodeJson (Max t) =
+    encodeJson $ fromFoldable
+      [ Tuple "@" (encodeJson "max")
       , Tuple "=" (encodeJson t)
       ]
 

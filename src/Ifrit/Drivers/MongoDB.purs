@@ -3,7 +3,7 @@ module Ifrit.Drivers.MongoDB where
 import Prelude
 
 import Control.Monad.State(StateT, get, lift, put, runStateT)
-import Data.Argonaut.Core(Json)
+import Data.Argonaut.Core(Json, jsonZero, jsonNull)
 import Data.Argonaut.Encode(encodeJson, (:=))
 import Data.Array(snoc, foldM)
 import Data.Bifunctor(lmap)
@@ -81,57 +81,121 @@ instance ingestTerminal :: Ingest Terminal where
 instance ingestReduce :: Ingest Reduce where
   ingest r =
     let
-      ingest' _ (Avg t) = do
+      ingest' name t = do
         t' <- ingest t
         schema <- get
         case schema of
           JNumber ->
-            pure $ singleton "$avg" t'
+            pure $ singleton ("$" <> name) t'
           _ ->
-            lift $ Left "invalid operation @avg: target `=` isn't a number"
-    in do
-      schema <- get
-      ingest' schema r
+            lift $ Left ("invalid operation @" <> name <> ": target `=` isn't a number")
+    in case r of
+      Avg t ->
+        ingest' "avg" t
+      Min t ->
+        ingest' "min" t
+      Max t ->
+        ingest' "max" t
 
 
 instance ingestMap :: Ingest Map where
   ingest m =
     let
-      ingest' _ (Project t) =
-        ingest t
-      ingest' _ (Inject src (Avg target)) = do
-        src' <- ingest src
+      inject src target fn = do
+        jsonSrc <- ingest src
         schemaSrc <- get
         case schemaSrc of
           JArray schemaSrcElem -> do
             put schemaSrcElem
             _ <- ingest target
             schemaTarget <- get
+            fn jsonSrc (selector target) schemaTarget
+          _ ->
+            lift $ Left "invalid operation @inject: list `[]` isn't an array"
+    in case m of
+      Project term ->
+        ingest term
+
+      Inject src (Avg target) ->
+        let
+          fn jsonSrc jsonTarget schemaTarget =
             case schemaTarget of
               JNumber ->
                 let
                   sum = list
                     [ encodeJson "$$value"
-                    , selector target
+                    , jsonTarget
                     ]
                   reduce = object
-                    [ "input" := src'
-                    , "initialValue" := (encodeJson 0.0)
+                    [ "input" := jsonSrc
+                    , "initialValue" := jsonZero
                     , "in" := (singleton "$add" sum)
                     ]
                   divide = list
                     [ singleton "$reduce" reduce
-                    , singleton "$size" src'
+                    , singleton "$size" jsonSrc
                     ]
                 in do
                   pure $ singleton "$divide" divide
               _ ->
                 lift $ Left "invalid operation @avg: target `=` isn't a number"
-          _ ->
-            lift $ Left "invalid operation @inject: list `[]` isn't an array"
-    in do
-      schema <- get
-      ingest' schema m
+        in
+          inject src target fn
+
+      Inject src (Min target) ->
+        let
+          fn jsonSrc jsonTarget schemaTarget =
+            case schemaTarget of
+              JNumber ->
+                let
+                  or = list
+                    [ singleton "$eq" (list [ encodeJson "$$value", jsonNull ])
+                    , singleton "$lt" (list [ jsonTarget, encodeJson "$$value" ])
+                    ]
+                  cond = object
+                    [ "if" := (singleton "$or" or)
+                    , "then" := jsonTarget
+                    , "else" := (encodeJson "$$value")
+                    ]
+                  reduce = object
+                    [ "input" := jsonSrc
+                    , "initialValue" := jsonNull
+                    , "in" := (singleton "$cond" cond)
+                    ]
+                in do
+                  pure $ singleton "$reduce" reduce
+              _ ->
+                lift $ Left "invalid operation @min: target `=` isn't a number"
+        in
+          inject src target fn
+
+      Inject src (Max target) ->
+        let
+          fn jsonSrc jsonTarget schemaTarget =
+            case schemaTarget of
+              JNumber ->
+                let
+                  or = list
+                    [ singleton "$eq" (list [ encodeJson "$$value", jsonNull ])
+                    , singleton "$gt" (list [ jsonTarget, encodeJson "$$value" ])
+                    ]
+                  cond = object
+                    [ "if" := (singleton "$or" or)
+                    , "then" := jsonTarget
+                    , "else" := (encodeJson "$$value")
+                    ]
+                  reduce = object
+                    [ "input" := jsonSrc
+                    , "initialValue" := jsonNull
+                    , "in" := (singleton "$cond" cond)
+                    ]
+                in do
+                  pure $ singleton "$reduce" reduce
+              _ ->
+                lift $ Left "invalid operation @max: target `=` isn't a number"
+        in
+          inject src target fn
+
 
 
 instance ingestStage :: Ingest Stage where

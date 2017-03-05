@@ -1,0 +1,68 @@
+{
+    "schema_in": {
+        "class": "string",
+        "is_alive": "boolean",
+        "age": "number",
+        "spells": [{
+            "power": "number",
+            "name": "string"
+        }]
+    },
+
+    "pipeline_in": [
+        {
+            "@": "map",
+            "=": {
+                "min_power": {
+                    "@": "inject",
+                    "[]": {
+                        "@": "field",
+                        "=": "spells"
+                    },
+                    "=": {
+                        "@": "min",
+                        "=": {
+                            "@": "field",
+                            "=": "power"
+                        }
+                    }
+                }
+            }
+        }
+    ],
+
+
+
+    "schema_out": {
+        "min_power": "number"
+    },
+
+    "pipeline_out": [
+        {
+            "$project": {
+                "min_power": {
+                    "$reduce": {
+                        "input": "$spells",
+                        "initialValue": null,
+                        "in": {
+                            "$cond": {
+                                "if": {
+                                    "$or": [
+                                        {
+                                            "$eq": ["$$value", null]
+                                        },
+                                        {
+                                            "$lt": ["$$this.power", "$$value"]
+                                        }
+                                    ]
+                                },
+                                "then": "$$this.power",
+                                "else": "$$value"
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    ]
+}
