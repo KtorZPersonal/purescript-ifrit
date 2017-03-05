@@ -4,9 +4,9 @@ import Prelude
 import Data.Argonaut.Core(Json, stringify, isString, isBoolean, isNumber, foldJson)
 import Data.Argonaut.Decode(class DecodeJson, decodeJson)
 import Data.Argonaut.Encode(class EncodeJson, encodeJson)
-import Data.Array(head, length)
+import Data.Array(concat, head, length, snoc)
 import Data.Either(Either(..))
-import Data.Maybe(Maybe(..))
+import Data.Maybe(Maybe(..), maybe)
 import Data.StrMap(StrMap, fromFoldable)
 import Data.Traversable(traverse)
 import Data.Tuple(Tuple(..))
@@ -31,7 +31,7 @@ data Reduce
 
 data Stage
   = Map (StrMap Map)
-  | Reduce (StrMap Reduce)
+  | Reduce (Maybe Terminal) (StrMap Reduce)
 
 type Pipeline =
   Array Stage
@@ -101,14 +101,20 @@ instance decodeJsonStage :: (DecodeJson (StrMap Json), DecodeJson String)
   => DecodeJson Stage where
   decodeJson =
     let
-      decoder (Just "map") (Just m) =
+      decoder (Just "map") (Just m) Nothing =
         Map <$> traverse decodeJson m
-      decoder (Just "reduce") (Just m) =
-        Reduce <$> traverse decodeJson m
-      decoder _ _ =
+
+      decoder (Just "reduce") (Just m) Nothing =
+        Reduce <$> Right Nothing
+               <*> traverse decodeJson m
+      decoder (Just "reduce") (Just m) (Just i) =
+        Reduce <$> decodeJson i
+               <*> traverse decodeJson m
+
+      decoder _ _ _ =
         Left "unknown stage operator"
      in
-      decode2 "@" "=" decoder
+      decode3 "@" "=" "#" decoder
 
 
 instance decodeJsonSchema :: DecodeJson JsonSchema where
@@ -197,10 +203,12 @@ instance encodeJsonStage :: (EncodeJson (StrMap String), EncodeJson Map)
       [ Tuple "@" (encodeJson "map")
       , Tuple "=" (encodeJson m)
       ]
-  encodeJson (Reduce m) =
-    encodeJson $ fromFoldable
-      [ Tuple "@" (encodeJson "reduce")
-      , Tuple "=" (encodeJson m)
+  encodeJson (Reduce index m) =
+    encodeJson $ fromFoldable $ concat
+      [ [ Tuple "@" (encodeJson "reduce")
+        , Tuple "=" (encodeJson m)
+        ]
+        , maybe [] (encodeJson >>> Tuple "#" >>> snoc []) index
       ]
 
 

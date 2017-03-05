@@ -33,6 +33,7 @@
     "pipeline_out": [
         {
             "$group": {
+                "_id": null,
                 "avg_age": {
                     "$avg": "$age"
                 }

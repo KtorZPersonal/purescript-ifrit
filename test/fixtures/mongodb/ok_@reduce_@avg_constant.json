@@ -11,6 +11,10 @@
     "pipeline_in": [
         {
             "@": "reduce",
+            "#": {
+                "@": "field",
+                "=": "class"
+            },
             "=": {
                 "useless": {
                     "@": "avg",
@@ -32,6 +36,7 @@
     "pipeline_out": [
         {
             "$group": {
+                "_id": "$class",
                 "useless": {
                     "$avg": 2
                 }

@@ -47,6 +47,7 @@
         },
         {
             "$group": {
+                "_id": null,
                 "avg_age": {
                     "$avg": "$projected_age"
                 }

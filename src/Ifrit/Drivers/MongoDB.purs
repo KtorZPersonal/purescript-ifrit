@@ -4,12 +4,12 @@ import Prelude
 
 import Control.Monad.State(StateT, get, lift, put, runStateT)
 import Data.Argonaut.Core(Json, jsonZero, jsonNull)
-import Data.Argonaut.Encode(encodeJson, (:=))
+import Data.Argonaut.Encode(encodeJson, (:=), (~>))
 import Data.Array(snoc, foldM)
 import Data.Bifunctor(lmap)
 import Data.Either(Either(..))
 import Data.List(fromFoldable) as L
-import Data.Maybe(Maybe(..))
+import Data.Maybe(Maybe(..), maybe)
 import Data.StrMap(lookup, fromFoldable) as M
 import Data.Traversable(traverse)
 import Data.Tuple(Tuple(..), fst, snd)
@@ -199,22 +199,27 @@ instance ingestMap :: Ingest Map where
 
 
 instance ingestStage :: Ingest Stage where
-  ingest s =
-    let
-      ingest' op m = do
-        schema <- get
-        let f  = (flip runStateT $ schema) :: Pipeline -> Either String (Tuple Json JsonSchema)
-        case traverse f m of
-          Left err ->
-            lift $ Left err
-          Right obj -> do
-            put $ JObject (map snd obj)
-            pure $ (singleton op $ encodeJson (map fst obj))
-    in case s of
-      Map m ->
-        ingest' "$project" (map ingest m)
-      Reduce m ->
-        ingest' "$group" (map ingest m)
+  ingest (Map m) = do
+    schema <- get
+    let f  = (flip runStateT $ schema) :: Pipeline -> Either String (Tuple Json JsonSchema)
+    case traverse f (map ingest m) of
+      Left err ->
+        lift $ Left err
+      Right obj -> do
+        put $ JObject (map snd obj)
+        pure $ (singleton "$project" $ encodeJson (map fst obj))
+
+  ingest (Reduce index m) = do
+    jsonIndex <- maybe (pure jsonNull) ingest index
+    schema <- get
+    let f  = (flip runStateT $ schema) :: Pipeline -> Either String (Tuple Json JsonSchema)
+    case traverse f (map ingest m) of
+      Left err ->
+        lift $ Left err
+      Right obj -> do
+        put $ JObject (map snd obj)
+        pure $ singleton "$group" (("_id" := jsonIndex) ~> encodeJson (map fst obj))
+
 
 
 instance ingestArray :: Ingest a => Ingest (Array a) where
