@@ -1,0 +1,24 @@
+{
+    "schema_in": {
+        "power": "number",
+        "bonus": "number"
+    },
+    "pipeline_in": [
+        {
+            "@": "map",
+            "=": {
+                "sum": {
+                    "@": "add",
+                    "=": [
+                        { "@": "field", "=": "power" },
+                        { "@": "field", "=": "bonus_typo" }
+                    ]
+                }
+            }
+        }
+    ],
+
+
+
+    "error": "invalid operation @field: unreachable field `bonus_typo`"
+}

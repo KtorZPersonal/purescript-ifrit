@@ -1,0 +1,32 @@
+{
+    "schema_in": {
+        "whatever": "string"
+    },
+    "pipeline_in": [
+        {
+            "@": "map",
+            "=": {
+                "sum": {
+                    "@": "add",
+                    "=": [
+                        { "@": "constant", "=": 14 },
+                        { "@": "constant", "=": 42 }
+                    ]
+                }
+            }
+        }
+    ],
+
+    "schema_out": {
+        "sum": "number"
+    },
+    "pipeline_out": [
+        {
+            "$project": {
+                "sum": {
+                    "$add": [14, 42]
+                }
+            }
+        }
+    ]
+}

@@ -110,6 +110,23 @@ instance ingestMap :: Ingest Map where
         Project term ->
           ingest term
 
+        Add terms ->
+          let
+              check schema term = do
+                jsonTerm <- ingest term
+                schemaTerm <- get
+                case schemaTerm of
+                  JNumber -> do
+                    put schema
+                    pure jsonTerm
+                  _ ->
+                    lift $ Left "invalid operation @add: at least one element isn't a number"
+          in do
+              schema <- get
+              terms' <- traverse (check schema) terms
+              put JNumber
+              pure $ singleton "$add" (encodeJson terms')
+
         Inject src (Avg target) ->
           let
               fn jsonSrc jsonTarget schemaTarget =

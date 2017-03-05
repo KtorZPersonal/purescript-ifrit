@@ -2,7 +2,7 @@ module Ifrit.Core where
 
 import Prelude
 
-import Data.Argonaut.Core(Json, stringify, isString, isBoolean, isNumber, foldJson)
+import Data.Argonaut.Core(Json, stringify, isArray, isString, isBoolean, isNumber, foldJson)
 import Data.Argonaut.Decode(class DecodeJson, decodeJson)
 import Data.Argonaut.Encode(class EncodeJson, encodeJson)
 import Data.Array(concat, head, length, snoc)
@@ -25,6 +25,7 @@ data Terminal
 data Map
   = Project Terminal
   | Inject Terminal Reduce
+  | Add (Array Terminal)
 
 data Reduce
   = Avg Terminal
@@ -69,10 +70,10 @@ instance decodeJsonReduce :: DecodeJson String => DecodeJson Reduce where
     let
         decoder (Just "avg") (Just f) =
           Avg <$> decodeJson f
-        decoder (Just "min") (Just f) =
-          Min <$> decodeJson f
         decoder (Just "max") (Just f) =
           Max <$> decodeJson f
+        decoder (Just "min") (Just f) =
+          Min <$> decodeJson f
         decoder _ _ =
           Left "unknown reduce operator"
     in
@@ -82,17 +83,19 @@ instance decodeJsonReduce :: DecodeJson String => DecodeJson Reduce where
 instance decodeJsonMap :: DecodeJson String => DecodeJson Map where
   decodeJson =
     let
-        decoder (Just "inject") (Just src) (Just op) =
-          Inject <$> decodeJson src
-                 <*> decodeJson op
-        decoder (Just "field") Nothing (Just f) =
-          Field >>> Project <$> decodeJson f
+        decoder (Just "add") Nothing (Just terms) | isArray terms =
+          Add <$> decodeJson terms
         decoder (Just "constant") Nothing (Just c) | isNumber c =
           ConstantNumber >>> Project <$> decodeJson c
         decoder (Just "constant") Nothing (Just c) | isBoolean c =
           ConstantBoolean >>> Project <$> decodeJson c
         decoder (Just "constant") Nothing (Just c) | isString c =
           ConstantString >>> Project <$> decodeJson c
+        decoder (Just "field") Nothing (Just f) =
+          Field >>> Project <$> decodeJson f
+        decoder (Just "inject") (Just src) (Just op) =
+          Inject <$> decodeJson src
+                 <*> decodeJson op
         decoder _ _ _ =
           Left "unknown map operator"
     in
@@ -185,14 +188,19 @@ instance encodeJsonMap :: (EncodeJson (StrMap String), EncodeJson Terminal)
   => EncodeJson Map where
   encodeJson (Inject t r) =
     encodeJson $ fromFoldable
-    [ Tuple "@" (encodeJson "inject")
-    , Tuple "[]"(encodeJson t)
-    , Tuple "=" (encodeJson r)
-    ]
+      [ Tuple "@" (encodeJson "inject")
+      , Tuple "[]"(encodeJson t)
+      , Tuple "=" (encodeJson r)
+      ]
   encodeJson (Project m) =
     encodeJson $ fromFoldable
       [ Tuple "@" (encodeJson "field")
       , Tuple "=" (encodeJson m)
+      ]
+  encodeJson (Add terms) =
+    encodeJson $ fromFoldable
+      [ Tuple "@" (encodeJson "add")
+      , Tuple "=" (encodeJson terms)
       ]
 
 

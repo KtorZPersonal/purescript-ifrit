@@ -17,10 +17,10 @@ Ifrit ![travis](https://travis-ci.org/KtorZ/ifrit.svg?style=flat-square) ![licen
 - Add `mult` reduce Operator
 - Add `med` reduce Operator
 - Add `sum` reduce Operator
-- Add `collect` map Operator
+- ~~Add `add` map Operator~~
 - Add `abs` map Operator
-- Add `add` map Operator
 - Add `ceil` map Operator
+- Add `collect` map Operator
 - Add `div` map Operator
 - Add `mult` map Operator
 - Add `gt`, `lt`, `eq`, `neq`, `and`, `or` filter Operator
