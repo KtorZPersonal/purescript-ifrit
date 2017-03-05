@@ -1,6 +1,7 @@
 module Ifrit.Core where
 
 import Prelude
+
 import Data.Argonaut.Core(Json, stringify, isString, isBoolean, isNumber, foldJson)
 import Data.Argonaut.Decode(class DecodeJson, decodeJson)
 import Data.Argonaut.Encode(class EncodeJson, encodeJson)
@@ -10,10 +11,11 @@ import Data.Maybe(Maybe(..), maybe)
 import Data.StrMap(StrMap, fromFoldable)
 import Data.Traversable(traverse)
 import Data.Tuple(Tuple(..))
+
 import Ifrit.Decoder(decode2, decode3)
 
--- TYPES
 
+-- TYPES
 data Terminal
   = Field String
   | ConstantString String
@@ -43,125 +45,123 @@ data JsonSchema
   | JNumber
   | JBoolean
 
--- INSTANCE DECODEJSON
 
+-- INSTANCE DECODEJSON
 instance decodeJsonTerminal :: DecodeJson String => DecodeJson Terminal where
   decodeJson =
     let
-      decoder (Just "field") (Just f) =
-        Field <$> decodeJson f
-      decoder (Just "constant") (Just c) | isNumber c =
-        ConstantNumber <$> decodeJson c
-      decoder (Just "constant") (Just c) | isBoolean c =
-        ConstantBoolean <$> decodeJson c
-      decoder (Just "constant") (Just c) | isString c =
-        ConstantString <$> decodeJson c
-      decoder _ _ =
-        Left "unknown terminal operator"
+        decoder (Just "field") (Just f) =
+          Field <$> decodeJson f
+        decoder (Just "constant") (Just c) | isNumber c =
+          ConstantNumber <$> decodeJson c
+        decoder (Just "constant") (Just c) | isBoolean c =
+          ConstantBoolean <$> decodeJson c
+        decoder (Just "constant") (Just c) | isString c =
+          ConstantString <$> decodeJson c
+        decoder _ _ =
+          Left "unknown terminal operator"
     in
-      decode2 "@" "=" decoder
+        decode2 "@" "=" decoder
 
 
 instance decodeJsonReduce :: DecodeJson String => DecodeJson Reduce where
   decodeJson =
     let
-      decoder (Just "avg") (Just f) =
-        Avg <$> decodeJson f
-      decoder (Just "min") (Just f) =
-        Min <$> decodeJson f
-      decoder (Just "max") (Just f) =
-        Max <$> decodeJson f
-      decoder _ _ =
-        Left "unknown reduce operator"
+        decoder (Just "avg") (Just f) =
+          Avg <$> decodeJson f
+        decoder (Just "min") (Just f) =
+          Min <$> decodeJson f
+        decoder (Just "max") (Just f) =
+          Max <$> decodeJson f
+        decoder _ _ =
+          Left "unknown reduce operator"
     in
-      decode2 "@" "=" decoder
+        decode2 "@" "=" decoder
 
 
 instance decodeJsonMap :: DecodeJson String => DecodeJson Map where
   decodeJson =
     let
-      decoder (Just "inject") (Just src) (Just op) =
-        Inject <$> decodeJson src
-               <*> decodeJson op
-      decoder (Just "field") Nothing (Just f) =
-        Field >>> Project <$> decodeJson f
-      decoder (Just "constant") Nothing (Just c) | isNumber c =
-        ConstantNumber >>> Project <$> decodeJson c
-      decoder (Just "constant") Nothing (Just c) | isBoolean c =
-        ConstantBoolean >>> Project <$> decodeJson c
-      decoder (Just "constant") Nothing (Just c) | isString c =
-        ConstantString >>> Project <$> decodeJson c
-      decoder _ _ _ =
-        Left "unknown map operator"
+        decoder (Just "inject") (Just src) (Just op) =
+          Inject <$> decodeJson src
+                 <*> decodeJson op
+        decoder (Just "field") Nothing (Just f) =
+          Field >>> Project <$> decodeJson f
+        decoder (Just "constant") Nothing (Just c) | isNumber c =
+          ConstantNumber >>> Project <$> decodeJson c
+        decoder (Just "constant") Nothing (Just c) | isBoolean c =
+          ConstantBoolean >>> Project <$> decodeJson c
+        decoder (Just "constant") Nothing (Just c) | isString c =
+          ConstantString >>> Project <$> decodeJson c
+        decoder _ _ _ =
+          Left "unknown map operator"
     in
-      decode3 "@" "[]" "=" decoder
+        decode3 "@" "[]" "=" decoder
 
 
 instance decodeJsonStage :: (DecodeJson (StrMap Json), DecodeJson String)
   => DecodeJson Stage where
   decodeJson =
     let
-      decoder (Just "map") (Just m) Nothing =
-        Map <$> traverse decodeJson m
-
-      decoder (Just "reduce") (Just m) Nothing =
-        Reduce <$> Right Nothing
-               <*> traverse decodeJson m
-      decoder (Just "reduce") (Just m) (Just i) =
-        Reduce <$> decodeJson i
-               <*> traverse decodeJson m
-
-      decoder _ _ _ =
-        Left "unknown stage operator"
+        decoder (Just "map") (Just m) Nothing =
+          Map <$> traverse decodeJson m
+        decoder (Just "reduce") (Just m) Nothing =
+          Reduce <$> Right Nothing
+                 <*> traverse decodeJson m
+        decoder (Just "reduce") (Just m) (Just i) =
+          Reduce <$> decodeJson i
+                 <*> traverse decodeJson m
+        decoder _ _ _ =
+          Left "unknown stage operator"
      in
-      decode3 "@" "=" "#" decoder
+        decode3 "@" "=" "#" decoder
 
 
 instance decodeJsonSchema :: DecodeJson JsonSchema where
   decodeJson =
     let
-      decodeNull _ =
-        Left "can't decode null to schema"
-      decodeBoolean _ =
-        Left "can't decode boolean to schema"
-      decodeNumber _ =
-        Left "can't decode number to schema"
-      decodeString "string" =
-        Right JString
-      decodeString "number" =
-        Right JNumber
-      decodeString "boolean" =
-        Right JBoolean
-      decodeString s =
-        Left ("can't decode type: invalid provided type: " <> s)
-      decodeArray xs =
-        if length xs /= 1
-        then Left "can't decode array: exactly one element is expected"
-        else case head xs of
-          Nothing ->
-            Left "can't decode array: exactly one element is expected"
-          Just schema ->
-            JArray <$> decodeJson schema
-      decodeObject obj = JObject <$> traverse decodeJson obj
+        decodeNull _ =
+          Left "can't decode null to schema"
+        decodeBoolean _ =
+          Left "can't decode boolean to schema"
+        decodeNumber _ =
+          Left "can't decode number to schema"
+        decodeString "string" =
+          Right JString
+        decodeString "number" =
+          Right JNumber
+        decodeString "boolean" =
+          Right JBoolean
+        decodeString s =
+          Left ("can't decode type: invalid provided type: " <> s)
+        decodeArray xs =
+          if length xs /= 1
+          then Left "can't decode array: exactly one element is expected"
+          else case head xs of
+            Nothing ->
+              Left "can't decode array: exactly one element is expected"
+            Just schema ->
+              JArray <$> decodeJson schema
+        decodeObject obj = JObject <$> traverse decodeJson obj
     in
-      foldJson decodeNull decodeBoolean decodeNumber decodeString decodeArray decodeObject
+        foldJson decodeNull decodeBoolean decodeNumber decodeString decodeArray decodeObject
 
 
 -- INSTANCE ENCODEJSON
-
 instance encodeJsonTerminal :: EncodeJson (StrMap String) => EncodeJson Terminal where
   encodeJson term =
     let
-      encode :: forall a. EncodeJson a => a -> Json
-      encode x = encodeJson $ fromFoldable
-        [ Tuple "@" (encodeJson "field")
-        , Tuple "=" (encodeJson x)
-        ]
+        encode :: forall a. EncodeJson a => a -> Json
+        encode x = encodeJson $ fromFoldable
+          [ Tuple "@" (encodeJson "field")
+          , Tuple "=" (encodeJson x)
+          ]
     in case term of
-      Field f -> encode f
-      ConstantString c -> encode c
-      ConstantBoolean c -> encode c
-      ConstantNumber c -> encode c
+        Field f -> encode f
+        ConstantString c -> encode c
+        ConstantBoolean c -> encode c
+        ConstantNumber c -> encode c
+
 
 instance encodeJsonReduce :: (EncodeJson (StrMap String), EncodeJson Terminal) => EncodeJson Reduce where
   encodeJson (Avg t) =
@@ -224,23 +224,19 @@ instance encodeJsonJsonSchema :: EncodeJson JsonSchema where
   encodeJson JBoolean =
     encodeJson "boolean"
 
--- INSTANCE SHOW
 
+-- INSTANCE SHOW
 instance showTerminal :: EncodeJson Terminal => Show Terminal where
   show = encodeJson >>> stringify
-
 
 instance showReduce :: EncodeJson Reduce => Show Reduce where
   show = encodeJson >>> stringify
 
-
 instance showMap :: EncodeJson Map => Show Map where
   show = encodeJson >>> stringify
 
-
 instance showStage :: EncodeJson Stage => Show Stage  where
   show = encodeJson >>> stringify
-
 
 instance showJsonSchema :: EncodeJson JsonSchema => Show JsonSchema where
   show = encodeJson >>> stringify

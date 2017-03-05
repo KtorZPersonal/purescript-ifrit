@@ -3,7 +3,8 @@ module Ifrit.Decoder
   , decode3
   ) where
 
-import Prelude(bind)
+import Prelude
+
 import Data.Argonaut.Decode(class DecodeJson)
 import Data.Argonaut.Decode.Combinators((.??))
 import Data.Argonaut.Core(Json, toObject)
