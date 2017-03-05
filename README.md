@@ -17,7 +17,6 @@ Ifrit ![travis](https://travis-ci.org/KtorZ/ifrit.svg?style=flat-square) ![licen
 - Add `mult` reduce Operator
 - Add `med` reduce Operator
 - Add `sum` reduce Operator
-- Add `some` reduce Operator
 - Add `collect` map Operator
 - Add `abs` map Operator
 - Add `add` map Operator
@@ -25,6 +24,7 @@ Ifrit ![travis](https://travis-ci.org/KtorZ/ifrit.svg?style=flat-square) ![licen
 - Add `div` map Operator
 - Add `mult` map Operator
 - Add `gt`, `lt`, `eq`, `neq`, `and`, `or` filter Operator
+- Add `every`, `some` filter Operator
 - Add `?` filter option on the `map` stage
 - Review tests to show all executed fixtures
 
