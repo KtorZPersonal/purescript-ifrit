@@ -90,6 +90,8 @@ instance ingestReduce :: Ingest Reduce where
           ingest' "min" t
         Max t ->
           ingest' "max" t
+        Sum t ->
+          ingest' "sum" t
 
 
 instance ingestMap :: Ingest Map where
@@ -106,11 +108,17 @@ instance ingestMap :: Ingest Map where
               fn jsonSrc (selector target) schemaTarget
             _ ->
               lift $ Left "invalid operation @inject: list `[]` isn't an array"
-    in case m of
-        Project term ->
-          ingest term
 
-        Add terms ->
+        nbOp op op' term = do
+          jsonTerm <- ingest term
+          schema <- get
+          case schema of
+            JNumber ->
+              pure $ singleton ("$" <> op') jsonTerm
+            _ ->
+              lift $ Left ("invalid operation @" <> op <> ": target `=` isn't a number")
+
+        iterNbOp op op' terms =
           let
               check schema term = do
                 jsonTerm <- ingest term
@@ -120,12 +128,34 @@ instance ingestMap :: Ingest Map where
                     put schema
                     pure jsonTerm
                   _ ->
-                    lift $ Left "invalid operation @add: at least one element isn't a number"
+                    lift $ Left ("invalid operation @" <> op <> ": at least one element isn't a number")
           in do
               schema <- get
               terms' <- traverse (check schema) terms
               put JNumber
-              pure $ singleton "$add" (encodeJson terms')
+              pure $ singleton ("$" <> op') (encodeJson terms')
+
+    in case m of
+        Project term ->
+          ingest term
+
+        Abs term ->
+          nbOp "abs" "abs" term
+
+        Add terms ->
+          iterNbOp "add" "add" terms
+
+        Div terms ->
+          iterNbOp "div" "divide" terms
+
+        Ceil term ->
+          nbOp "ceil" "ceil" term
+
+        Floor term ->
+          nbOp "floor" "floor" term
+
+        Mult terms ->
+          iterNbOp "mult" "multiply" terms
 
         Inject src (Avg target) ->
           let
@@ -146,7 +176,7 @@ instance ingestMap :: Ingest Map where
                           [ singleton "$reduce" reduce
                           , singleton "$size" jsonSrc
                           ]
-                    in do
+                     in
                         pure $ singleton "$divide" divide
                   _ ->
                     lift $ Left "invalid operation @avg: target `=` isn't a number"
@@ -173,7 +203,7 @@ instance ingestMap :: Ingest Map where
                           , "initialValue" := jsonNull
                           , "in" := (singleton "$cond" cond)
                           ]
-                    in do
+                     in
                         pure $ singleton "$reduce" reduce
                   _ ->
                     lift $ Left "invalid operation @min: target `=` isn't a number"
@@ -200,13 +230,34 @@ instance ingestMap :: Ingest Map where
                           , "initialValue" := jsonNull
                           , "in" := (singleton "$cond" cond)
                           ]
-                    in do
+                    in
                         pure $ singleton "$reduce" reduce
                   _ ->
                     lift $ Left "invalid operation @max: target `=` isn't a number"
           in
               inject src target fn
 
+        Inject src (Sum target) ->
+          let
+            fn jsonSrc jsonTarget schemaTarget =
+              case schemaTarget of
+                JNumber ->
+                  let
+                      sum = list
+                        [ encodeJson "$$value"
+                        , jsonTarget
+                        ]
+                      reduce = object
+                        [ "input" := jsonSrc
+                        , "initialValue" := jsonZero
+                        , "in" := (singleton "$add" sum)
+                        ]
+                  in
+                      pure $ singleton "$reduce" reduce
+                _ ->
+                  lift $ Left "invalid operation @sum: target `=` isn't a number"
+          in
+              inject src target fn
 
 instance ingestStage :: Ingest Stage where
   ingest (Map m) = do

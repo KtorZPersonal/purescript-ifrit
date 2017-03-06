@@ -7,26 +7,26 @@ Ifrit ![travis](https://travis-ci.org/KtorZ/ifrit.svg?style=flat-square) ![licen
 
 # Todo
 
-- ~~Add [schema](json-schema.org) validations to ensure type consistency~~
-- ~~Review test files and structure~~
-- ~~Add `reduce` stage~~
-- ~~Add `min` reduce Operator~~
-- ~~Add `max` reduce Operator~~
-- Add `count` reduce Operator
-- Add `join` reduce Operator
-- Add `mult` reduce Operator
-- Add `med` reduce Operator
-- Add `sum` reduce Operator
-- ~~Add `add` map Operator~~
-- Add `abs` map Operator
-- Add `ceil` map Operator
-- Add `collect` map Operator
-- Add `div` map Operator
-- Add `mult` map Operator
-- Add `gt`, `lt`, `eq`, `neq`, `and`, `or` filter Operator
-- Add `every`, `some` filter Operator
-- Add `?` filter option on the `map` stage
-- Review tests to show all executed fixtures
+- [x] ~~Add [schema](json-schema.org) validations to ensure type consistency~~
+- [x] ~~Review test files and structure~~
+- [x] ~~Add `reduce` stage~~
+- [x] ~~Add `avg` reduce Operator~~
+- [x] ~~Add `max` reduce Operator~~
+- [ ] Add `med` reduce Operator
+- [x] ~~Add `min` reduce Operator~~
+- [x] ~~Add `sum` reduce Operator~~
+- [x] ~~Add `abs` map Operator~~
+- [x] ~~Add `add` map Operator~~
+- [x] ~~Add `ceil` map Operator~~
+- [ ] Add `collect` map Operator
+- [x] ~~Add `div` map Operator~~
+- [x] ~~Add `floor` map Operator~~
+- [x] ~~Add `mult` map Operator~~
+- [ ] Add `gt`, `lt`, `eq`, `neq`, `and`, `or` filter Operators
+- [ ] Add `every`, `some` filter Operators
+- [ ] Add `?` filter option on the `map` stage
+- [ ] Review tests to show all executed fixtures
+- [ ] Write package documentation & extend README
 
 # Credits
 
