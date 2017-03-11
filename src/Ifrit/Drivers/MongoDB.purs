@@ -3,18 +3,17 @@ module Ifrit.Drivers.MongoDB where
 import Prelude
 
 import Control.Monad.State(StateT, get, lift, put, runStateT)
-import Data.Argonaut.Core(Json, jsonZero, jsonNull)
+import Data.Argonaut.Core(Json, jsonNull, jsonZero, toArray)
 import Data.Argonaut.Encode(encodeJson, (:=), (~>))
-import Data.Array(snoc, foldM)
-import Data.Bifunctor(lmap)
+import Data.Array(concat, foldM, snoc)
 import Data.Either(Either(..))
 import Data.List(fromFoldable) as L
 import Data.Maybe(Maybe(..), maybe)
-import Data.StrMap(lookup, fromFoldable) as M
+import Data.StrMap(fromFoldable, lookup) as M
 import Data.Traversable(traverse)
 import Data.Tuple(Tuple(..), fst, snd)
 
-import Ifrit.Core(JsonSchema(..), Stage(..), Reduce(..), Map(..), Terminal(..))
+import Ifrit.Core(JsonSchema(..), Stage(..), Reduce(..), Map(..), Filter(..), Terminal(..))
 
 
 -- CLASSES & TYPES
@@ -49,7 +48,7 @@ instance ingestTerminal :: Ingest Terminal where
           case M.lookup f obj of
             Just schema' -> do
               put schema'
-              pure $ (encodeJson $ "$" <> f)
+              pure $ encodeJson ("$" <> f)
             Nothing ->
               lift $ Left ("invalid operation @field: unreachable field `" <> f <> "`")
 
@@ -71,6 +70,47 @@ instance ingestTerminal :: Ingest Terminal where
         schema <- get
         ingest' schema t
 
+
+instance ingestFilter :: Ingest Filter where
+  ingest t =
+    let
+        -- NOTE Not so happy with this...
+        ingestEqWithSchema schema x = do
+          x' <- ingest x
+          put schema
+          pure x'
+
+        ingestCondWithSchema schema x = do
+          x' <- ingest x
+          put schema
+          pure x'
+    in do
+        schema <- get
+        case t of
+          Eq terms -> do
+            terms' <- traverse (ingestEqWithSchema schema) terms
+            put JBoolean
+            pure $ singleton "$eq" (encodeJson terms')
+          Neq terms -> do
+            terms' <- traverse (ingestEqWithSchema schema) terms
+            put JBoolean
+            pure $ singleton "$neq" (encodeJson terms')
+          Gt terms -> do
+            terms' <- traverse (ingestEqWithSchema schema) terms
+            put JBoolean
+            pure $ singleton "$gt" (encodeJson terms')
+          Lt terms -> do
+            terms' <- traverse (ingestEqWithSchema schema) terms
+            put JBoolean
+            pure $ singleton "$lt" (encodeJson terms')
+          Or filters -> do
+            terms' <- traverse (ingestCondWithSchema schema) filters
+            put JBoolean
+            pure $ singleton "$or" (encodeJson terms')
+          And filters -> do
+            terms' <- traverse (ingestCondWithSchema schema) filters
+            put JBoolean
+            pure $ singleton "$and" (encodeJson terms')
 
 instance ingestReduce :: Ingest Reduce where
   ingest r =
@@ -259,35 +299,52 @@ instance ingestMap :: Ingest Map where
           in
               inject src target fn
 
+-- NOTE Each stage is expected to return a encoded json array
 instance ingestStage :: Ingest Stage where
-  ingest (Map m) = do
-    schema <- get
-    let f  = (flip runStateT $ schema) :: Pipeline -> Either String (Tuple Json JsonSchema)
-    case traverse f (map ingest m) of
-      Left err ->
-        lift $ Left err
-      Right obj -> do
-        put $ JObject (map snd obj)
-        pure $ (singleton "$project" $ encodeJson (map fst obj))
+  ingest (Map filter m) =
+    let
+        ingestMatch Nothing =
+          pure []
+        ingestMatch (Just f) = do
+          json <- ingest f
+          pure $ [encodeJson (singleton "$match" json)]
+    in do
+        schema <- get
+        jsonFilter <- ingestMatch filter
+        let f  = (flip runStateT $ schema) :: Pipeline -> Either String (Tuple Json JsonSchema)
+        case traverse f (map ingest m) of
+          Left err ->
+            lift $ Left err
+          Right obj -> do
+            put $ JObject (map snd obj)
+            pure $ encodeJson (snoc jsonFilter (singleton "$project" $ encodeJson (map fst obj)))
 
   ingest (Reduce index m) = do
-    jsonIndex <- maybe (pure jsonNull) ingest index
     schema <- get
+    jsonIndex <- maybe (pure jsonNull) ingest index
     let f  = (flip runStateT $ schema) :: Pipeline -> Either String (Tuple Json JsonSchema)
     case traverse f (map ingest m) of
       Left err ->
         lift $ Left err
       Right obj -> do
         put $ JObject (map snd obj)
-        pure $ singleton "$group" (("_id" := jsonIndex) ~> encodeJson (map fst obj))
+        pure $ encodeJson [singleton "$group" (("_id" := jsonIndex) ~> encodeJson (map fst obj))]
 
 
 instance ingestArray :: Ingest a => Ingest (Array a) where
   ingest xs =
     let
+        concatStages :: forall x. Array Json -> (Tuple Json x)-> Either String (Tuple (Array Json) x)
+        concatStages stages (Tuple s x) =
+          case toArray s of
+            Nothing ->
+              Left "invalid ingested stage"
+            Just stage ->
+              Right $ Tuple (concat [stages, stage]) x
+
         foldStage :: Tuple (Array Json) JsonSchema -> a -> Either String (Tuple (Array Json) JsonSchema)
         foldStage (Tuple queue schema) step =
-          lmap (snoc queue) <$> runStateT (ingest step) schema
+          runStateT (ingest step) schema >>= concatStages queue
     in do
         schema <- get
         case foldM foldStage (Tuple [] schema) xs of

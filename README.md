@@ -12,7 +12,6 @@ Ifrit ![travis](https://travis-ci.org/KtorZ/ifrit.svg?style=flat-square) ![licen
 - [x] ~~Add `reduce` stage~~
 - [x] ~~Add `avg` reduce Operator~~
 - [x] ~~Add `max` reduce Operator~~
-- [ ] Add `med` reduce Operator
 - [x] ~~Add `min` reduce Operator~~
 - [x] ~~Add `sum` reduce Operator~~
 - [x] ~~Add `abs` map Operator~~
@@ -22,9 +21,9 @@ Ifrit ![travis](https://travis-ci.org/KtorZ/ifrit.svg?style=flat-square) ![licen
 - [x] ~~Add `div` map Operator~~
 - [x] ~~Add `floor` map Operator~~
 - [x] ~~Add `mult` map Operator~~
-- [ ] Add `gt`, `lt`, `eq`, `neq`, `and`, `or` filter Operators
+- [x] ~~Add `gt`, `lt`, `eq`, `neq`, `and`, `or` filter Operators~~
 - [ ] Add `every`, `some` filter Operators
-- [ ] Add `?` filter option on the `map` stage
+- [x] ~~Add `?` filter option on the `map` stage~~
 - [ ] Review tests to show all executed fixtures
 - [ ] Write package documentation & extend README
 
