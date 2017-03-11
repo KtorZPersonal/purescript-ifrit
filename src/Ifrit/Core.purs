@@ -4,7 +4,7 @@ import Prelude
 
 import Data.Argonaut.Core(Json, stringify, isArray, isString, isBoolean, isNumber, foldJson)
 import Data.Argonaut.Decode(class DecodeJson, decodeJson)
-import Data.Argonaut.Encode(class EncodeJson, encodeJson)
+import Data.Argonaut.Encode(class EncodeJson, encodeJson, (:=), (~>))
 import Data.Array(concat, head, length, snoc)
 import Data.Either(Either(..))
 import Data.Maybe(Maybe(..), maybe)
@@ -242,119 +242,60 @@ instance encodeJsonTerminal :: EncodeJson (StrMap String) => EncodeJson Terminal
 
 instance encodeJsonFilter :: (EncodeJson (StrMap String), EncodeJson Terminal) => EncodeJson Filter where
   encodeJson (Eq t) =
-    encodeJson $ fromFoldable
-      [ Tuple "@" (encodeJson "eq")
-      , Tuple "=" (encodeJson t)
-      ]
+    "@" := "eq" ~> "=" := t
   encodeJson (Neq t) =
-    encodeJson $ fromFoldable
-      [ Tuple "@" (encodeJson "neq")
-      , Tuple "=" (encodeJson t)
-      ]
+    "@" := "neq" ~> "=" := t
   encodeJson (Lt t) =
-    encodeJson $ fromFoldable
-      [ Tuple "@" (encodeJson "lt")
-      , Tuple "=" (encodeJson t)
-      ]
+    "@" := "lt" ~> "=" := t
   encodeJson (Gt t) =
-    encodeJson $ fromFoldable
-      [ Tuple "@" (encodeJson "gt")
-      , Tuple "=" (encodeJson t)
-      ]
+    "@" := "gt" ~> "=" := t
   encodeJson (Or t) =
-    encodeJson $ fromFoldable
-      [ Tuple "@" (encodeJson "or")
-      , Tuple "=" (encodeJson t)
-      ]
+    "@" := "or" ~> "=" := t
   encodeJson (And t) =
-    encodeJson $ fromFoldable
-      [ Tuple "@" (encodeJson "and")
-      , Tuple "=" (encodeJson t)
-      ]
+    "@" := "and" ~> "=" := t
 
 
 instance encodeJsonReduce :: (EncodeJson (StrMap String), EncodeJson Terminal) => EncodeJson Reduce where
   encodeJson (Avg t) =
-    encodeJson $ fromFoldable
-      [ Tuple "@" (encodeJson "avg")
-      , Tuple "=" (encodeJson t)
-      ]
+    "@" := "avg" ~> "=" := t
   encodeJson (Min t) =
-    encodeJson $ fromFoldable
-      [ Tuple "@" (encodeJson "min")
-      , Tuple "=" (encodeJson t)
-      ]
+    "@" := "min" ~> "=" := t
   encodeJson (Max t) =
-    encodeJson $ fromFoldable
-      [ Tuple "@" (encodeJson "max")
-      , Tuple "=" (encodeJson t)
-      ]
+    "@" := "max" ~> "=" := t
   encodeJson (Sum t) =
-    encodeJson $ fromFoldable
-      [ Tuple "@" (encodeJson "sum")
-      , Tuple "=" (encodeJson t)
-      ]
+    "@" := "sum" ~> "=" := t
 
 
 instance encodeJsonMap :: (EncodeJson (StrMap String), EncodeJson Terminal)
   => EncodeJson Map where
-  encodeJson (Abs term) =
-    encodeJson $ fromFoldable
-      [ Tuple "@" (encodeJson "abs")
-      , Tuple "=" (encodeJson term)
-      ]
-  encodeJson (Add terms) =
-    encodeJson $ fromFoldable
-      [ Tuple "@" (encodeJson "add")
-      , Tuple "=" (encodeJson terms)
-      ]
-  encodeJson (Ceil term) =
-    encodeJson $ fromFoldable
-      [ Tuple "@" (encodeJson "ceil")
-      , Tuple "=" (encodeJson term)
-      ]
-  encodeJson (Div terms) =
-    encodeJson $ fromFoldable
-      [ Tuple "@" (encodeJson "div")
-      , Tuple "=" (encodeJson terms)
-      ]
-  encodeJson (Floor term) =
-    encodeJson $ fromFoldable
-      [ Tuple "@" (encodeJson "floor")
-      , Tuple "=" (encodeJson term)
-      ]
-  encodeJson (Inject src target) =
-    encodeJson $ fromFoldable
-      [ Tuple "@" (encodeJson "inject")
-      , Tuple "[]"(encodeJson src)
-      , Tuple "=" (encodeJson target)
-      ]
-  encodeJson (Mult terms) =
-    encodeJson $ fromFoldable
-      [ Tuple "@" (encodeJson "mult")
-      , Tuple "=" (encodeJson terms)
-      ]
-  encodeJson (Project term) =
-    encodeJson $ fromFoldable
-      [ Tuple "@" (encodeJson "field")
-      , Tuple "=" (encodeJson term)
-      ]
+  encodeJson (Abs t) =
+    "@" := "abs" ~> "=" := t
+  encodeJson (Add ts) =
+    "@" := "add" ~> "=" := ts
+  encodeJson (Ceil t) =
+    "@" := "ceil" ~> "=" := t
+  encodeJson (Div ts) =
+    "@" := "div" ~> "=" := ts
+  encodeJson (Floor t) =
+    "@" := "floor" ~> "=" := t
+  encodeJson (Inject s t) =
+    "@" := "inject" ~> "[]" := s ~> "=" := t
+  encodeJson (Mult ts) =
+    "@" := "mult" ~> "=" := ts
+  encodeJson (Project t) =
+    "@" := "field" ~> "=" := t
 
 
 instance encodeJsonStage :: (EncodeJson (StrMap String), EncodeJson Map)
   => EncodeJson Stage where
   encodeJson (Map filter m) =
     encodeJson $ fromFoldable $ concat
-      [ [ Tuple "@" (encodeJson "map")
-        , Tuple "=" (encodeJson m)
-        ]
+      [ [ "@" := "map", "=" := m ]
         , maybe [] (encodeJson >>> Tuple "?" >>> snoc []) filter
       ]
   encodeJson (Reduce index m) =
     encodeJson $ fromFoldable $ concat
-      [ [ Tuple "@" (encodeJson "reduce")
-        , Tuple "=" (encodeJson m)
-        ]
+      [ [ "@" := "reduce", "=" := m ]
         , maybe [] (encodeJson >>> Tuple "#" >>> snoc []) index
       ]
 
