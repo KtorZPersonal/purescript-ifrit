@@ -24,7 +24,8 @@
     "purescript-maybe": "2.0.1",
     "purescript-prelude": "2.3.0",
     "purescript-tuples": "3.1.0",
-    "purescript-filterable": "^1.1.0"
+    "purescript-filterable": "^1.1.0",
+    "purescript-string-parsers": "^2.1.0"
   },
   "devDependencies": {
     "purescript-aff": "2.0.3",

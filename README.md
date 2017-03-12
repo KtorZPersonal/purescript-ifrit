@@ -27,6 +27,132 @@ Ifrit ![travis](https://travis-ci.org/KtorZ/ifrit.svg?style=flat-square) ![licen
 - [ ] Review tests to show all executed fixtures
 - [ ] Write package documentation & extend README
 
+# Examples 
+
+## Schema Source 
+
+```json
+{
+    "name": "string",
+    "age": "number",
+    "lvl": "number",
+    "is_alive": "boolean",
+    "spells": [{
+        "name": "string",
+        "power": "number"
+    }]
+}
+```
+
+## Sum of all level, age and a constant
+
+```sql
+SELECT SUM(age, lvl, 14)
+```
+
+```json
+[
+    {
+        "@": "map",
+        "=": {
+            "sum": {
+                "@": "add",
+                "=": [
+                    { "@": "constant", "=": 14 },
+                    { "@": "field", "=": "lvl" },
+                    { "@": "field", "=": "age" }
+                ]
+            }
+        }
+    }
+]
+```
+
+## Maximum of spells' power
+
+```sql
+SELECT MAX(spells.power) AS max_power
+```
+
+```json
+[
+    {
+        "@": "map",
+        "=": {
+            "max_power": {
+                "@": "inject",
+                "[]": { "@": "field", "=": "spells" },
+                "=": {
+                    "@": "max",
+                    "=": { "@": "field", "=": "power" }
+                }
+            }
+        }
+    }
+]
+```
+
+## Average spell power per class
+
+```sql
+SELECT AVG(power)
+FROM (SELECT AVG(spells.power) as power, class)
+GROUP BY class 
+```
+
+```json
+[
+    {
+        "@": "map",
+        "=": {
+            "power": {
+                "@": "inject",
+                "[]": { "@": "field", "=": "spells" },
+                "=": {
+                    "@": "avg",
+                    "=": { "@": "field", "=": "power" }
+                }
+            }
+        }
+    },
+    {
+        "@": "reduce",
+        "#": { "@": "field", "=": "class" },
+        "=": {
+            "avg": {
+                "@": "avg",
+                "=": { "@": "field", "=": "power" }
+            }
+        }
+    }
+]
+```
+
+## Name of young mages
+
+```sql
+SELECT name
+WHERE age < 16
+```
+
+```json
+[
+    {
+        "@": "map",
+        "?": {
+            "@": "lt",
+            "=": [
+                { "@": "field", "=": "age" },
+                { "@": "constant", "=": 14 }
+            ]
+        },
+        "=": {
+            "name": { "@": "field", "=": "name" }
+        }
+    }
+]   
+```
+
 # Credits
 
 - Chibi Ifrit by [capsicum](http://capsicum.deviantart.com/)
