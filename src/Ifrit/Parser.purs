@@ -2,11 +2,12 @@ module Ifrit.Parser where
 
 import Prelude
 
-import Data.Maybe(Maybe(..), maybe)
-import Data.Either(Either(..))
+import Control.Alt((<|>))
+import Control.Monad.State(StateT, State, put, get, lift)
 import Data.Array(fromFoldable, intercalate)
-import Control.Monad.State(StateT, put, get, lift)
+import Data.Either(Either(..))
 import Data.List(List(..), (:), snoc)
+import Data.Maybe(Maybe(..), maybe)
 import Data.Tuple(Tuple(..), fst, snd)
 
 import Ifrit.Lexer(Token(..))
@@ -56,50 +57,89 @@ data Operand
 
 type Clause a = StateT (Tuple JsonSchema (List Token)) (Either String) a
 
+unwrap :: List Token -> Either String (List Token)
+unwrap tokens =
+  let
+      unwrap' 0 k (Parenthesis P.Open : q) Nil =
+        unwrap' 0 (k + 1) q Nil
+      unwrap' n k (Parenthesis P.Open : q) xs =
+        unwrap' (n + 1) k q (snoc xs (Parenthesis P.Open))
+
+      unwrap' 0 1 (Parenthesis P.Close : q) xs =
+        Right (xs <|> q)
+      unwrap' 0 k (Parenthesis P.Close : q) xs | k > 0 =
+        unwrap' 0 (k - 1) q xs
+      unwrap' n k (Parenthesis P.Close : q) xs | n > 0 =
+        unwrap' (n - 1) k q (snoc xs (Parenthesis P.Close))
+
+      unwrap' n k (h : q) xs =
+        unwrap' n k q (snoc xs h)
+
+      unwrap' 0 0 Nil xs =
+        Right xs
+      unwrap' _ _ Nil Nil =
+        Right Nil
+      unwrap' _ _ Nil xs =
+        Left "parsing error: unbalanced parenthesis expression"
+   in
+      unwrap' 0 0 tokens Nil
+
+
 parse :: Clause Query
 parse = do
   Tuple schema tokens <- get
-  case tokens of
-    (Keyword K.Select : q) -> do
-      put $ Tuple schema (Comma : q)
-      selectors <- parseSelectors
-      query <- parseFrom
-      filter <- parseWhere
-      pure $ Select selectors query filter Nothing
+  case unwrap tokens of
+    Right (Keyword K.Select : q) -> do
+      case unwrap q of
+        Left err ->
+          lift $ Left err
+        Right q' -> do
+          put $ Tuple schema (Comma : q')
+          selectors <- parseSelectors
+          query <- parseFrom
+          filter <- parseWhere
+          pure $ Select selectors query filter Nothing
 
-    (token:q) ->
+    Right (token:q) ->
       lift $ Left ("parsing error: invalid token: " <> (show token))
 
-    Nil ->
+    Right Nil ->
       lift $ Left "parsing error: empty query"
+
+    Left err ->
+      lift $ Left err
 
 
 parseSelectors :: Clause (List Selector)
 parseSelectors = do
   Tuple schema tokens <- get
-  case tokens of
-    (Comma : (Word w) : (Keyword K.As) : (Word w') : q) -> do
+  case unwrap tokens of
+    Right (Comma : (Word w) : (Keyword K.As) : (Word w') : q) -> do
       put $ Tuple schema q
       selectors <- parseSelectors
       pure $ (FieldAs w w') : selectors
 
-    (Comma : (Word w) : q) -> do
+    Right (Comma : (Word w) : q) -> do
       put $ Tuple schema q
       selectors <- parseSelectors
       pure $ (Field w) : selectors
 
-    (Comma : q) -> do
+    Right (Comma : q) -> do
       put $ Tuple schema q
       pure Nil
-    _ ->
+
+    Right _ ->
       pure Nil
+
+    Left err ->
+      lift $ Left err
 
 
 parseFrom :: Clause (Maybe Query)
 parseFrom = do
   Tuple schema tokens <- get
-  case tokens of
-    (Keyword K.From : Parenthesis P.Open : q) -> do
+  case unwrap tokens of
+    Right (Keyword K.From : Parenthesis P.Open : q) -> do
       put $ Tuple schema q
       query <- parse
       Tuple schema' tokens' <- get
@@ -108,54 +148,47 @@ parseFrom = do
           put $ Tuple schema' q'
           pure $ Just query
         _ ->
-          lift $ Left "parsing error: missing closing parenthesis for FROM clause"
+          lift $ Left "parsing error: unbalanced parenthesis expression"
 
-    (Keyword K.From : q) -> do
+    Right (Keyword K.From : q) -> do
       lift $ Left "parsing error: FROM clause should be wrapped in parenthesis"
 
-    _ ->
+    Right _ ->
       pure Nothing
+
+    Left err ->
+      lift $ Left err
 
 
 parseWhere :: Clause (Maybe Filter)
 parseWhere = do
   Tuple schema tokens <- get
-  case tokens of
-    (Keyword K.Where : Parenthesis P.Open : q) -> do
-      put $ Tuple schema q
-      condition <- parseCondition
-      Tuple schema' tokens' <- get
-      case tokens' of
-        (Parenthesis P.Close : q') -> do
-          put $ Tuple schema' q'
-          pure $ Just (Where condition)
-        _ ->
-          lift $ Left "parsing error: missing closing parenthesis for WHERE clause"
-
-    (Keyword K.Where : q) -> do
+  case unwrap tokens of
+    Right (Keyword K.Where : q) -> do
       put $ Tuple schema q
       condition <- parseCondition
       pure $ Just (Where condition)
 
-    _ ->
+    Right _ ->
       pure Nothing
+
+    Left err ->
+      lift $ Left err
 
 
 parseCondition :: Clause Condition
 parseCondition = do
   Tuple schema tokens <- get
-  lift $ Left "not implemented"
---    (Word w : BooleanOp b : Word w : q) ->
---
---    (Word w : BooleanOp O.Eq : Null : q) ->
---    (Word w : BooleanOp O.Neq : Null : q) ->
---    (Null : BooleanOp O.Eq : Word w : q) ->
---    (Null : BooleanOp O.Neq : Word w : q) ->
---
---    (And
---
---    (Null : BooleanOp b : q)
---    (_ : BooleanOp b : Null : q) ->
+  case unwrap tokens of
+    Right (Word w : BooleanOp O.Eq : Word w' : q) -> do
+      put $ Tuple schema q
+      pure $ ConditionTerm (Eq (OpSelector (Field w)) (OpSelector (Field w')))
+
+    Right _ ->
+      lift $ Left "not implemented"
+
+    Left err ->
+      lift $ Left err
 
 
 -- INSTANCES
