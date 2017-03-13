@@ -1,7 +1,9 @@
-module Ifrit.Tokenizer
+module Ifrit.Lexer
   ( Keyword(..)
   , Token(..)
-  , Tokenizer
+  , Parenthesis(..)
+  , BooleanOp(..)
+  , Lexer
   , tokenize
   ) where
 
@@ -26,16 +28,26 @@ data Keyword
   | GroupBy
   | Where
 
+data Parenthesis
+  = Close
+  | Open
+
+data BooleanOp
+  = Eq
+  | Neq
+  | Lt
+  | Gt
+
 data Token
   = Comma
   | Invalid
   | Keyword Keyword
   | Null
-  | ParenClose
-  | ParenOpen
+  | Parenthesis Parenthesis
+  | BooleanOp BooleanOp
   | Word String
 
-type Tokenizer = StateT { pos :: Int, str :: String } (Either String) (Array Token)
+type Lexer = StateT { pos :: Int, str :: String } (Either String) (Array Token)
 
 
 -- UTILS
@@ -63,14 +75,6 @@ parse' t s =
 infixr 7 parse' as </$/>
 infixr 7 parse as </*/>
 
-nextComma :: Parser Token
-nextComma =
-  Comma </$/> ","
-
-nextInvalid :: Parser Token
-nextInvalid =
-  Invalid </$/> "[^\\s]"
-
 nextKeyword :: Parser Token
 nextKeyword =
   keyword >>> Keyword </*/> "(SELECT|WHERE|FROM|AS|GROUP BY)"
@@ -79,31 +83,44 @@ nextNull :: Parser Token
 nextNull =
   Null </$/> "null"
 
-nextParenClose :: Parser Token
-nextParenClose =
-  ParenClose </$/> "\\)"
+nextParenthesis :: Parser Token
+nextParenthesis =
+  Parenthesis Close </$/> "\\)"
+  <|> Parenthesis Open </$/> "\\("
 
-nextParenOpen :: Parser Token
-nextParenOpen =
-  ParenOpen </$/> "\\("
+nextBooleanOp :: Parser Token
+nextBooleanOp =
+  BooleanOp Eq </$/> "=="
+  <|> BooleanOp Neq </$/> "/="
+  <|> BooleanOp Lt </$/> "<"
+  <|> BooleanOp Gt </$/> ">"
+
+nextComma :: Parser Token
+nextComma =
+  Comma </$/> ","
 
 nextWord :: Parser Token
 nextWord =
   trim >>> Word </*/> "[a-zA-Z0-9_.]+"
 
+nextInvalid :: Parser Token
+nextInvalid =
+  Invalid </$/> "[^\\s]"
+
+
 parser :: Parser Token
 parser =
   nextKeyword
-  <|> nextParenOpen
-  <|> nextParenClose
-  <|> nextComma
   <|> nextNull
+  <|> nextParenthesis
+  <|> nextBooleanOp
+  <|> nextComma
   <|> nextWord
   <|> nextInvalid
 
 
 -- EXPORTS
-tokenize :: Tokenizer
+tokenize :: Lexer
 tokenize = do
   { pos, str } <- get
   case unParser parser { pos, str } of
@@ -129,10 +146,18 @@ instance showToken :: (Show Number, Show Keyword) => Show Token where
     "null"
   show Comma =
     "`,`"
-  show ParenOpen =
+  show (Parenthesis Open) =
     "("
-  show ParenClose =
+  show (Parenthesis Close) =
     ")"
+  show (BooleanOp Eq) =
+    "=="
+  show (BooleanOp Neq) =
+    "/="
+  show (BooleanOp Lt) =
+    "<"
+  show (BooleanOp Gt) =
+    ">"
   show Invalid =
     "INVALID_TOKEN"
 
