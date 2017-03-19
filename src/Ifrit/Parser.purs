@@ -2,256 +2,354 @@ module Ifrit.Parser where
 
 import Prelude
 
-import Control.Alt((<|>))
-import Control.Monad.State(StateT, State, put, get, lift)
-import Data.Array(fromFoldable, intercalate)
+import Control.Monad.State(StateT, get, lift, put)
+import Data.Array(intercalate)
+import Data.Decimal(Decimal, toString)
 import Data.Either(Either(..))
-import Data.List(List(..), (:), snoc)
+import Data.List(List(..), (:))
 import Data.Maybe(Maybe(..), maybe)
-import Data.Tuple(Tuple(..), fst, snd)
 
-import Ifrit.Lexer(Token(..))
-import Ifrit.Lexer(Keyword(..)) as K
-import Ifrit.Lexer(BooleanOp(..)) as O
-import Ifrit.Lexer(Parenthesis(..)) as P
-import Ifrit.Core(JsonSchema(..))
+import Ifrit.Lexer as Lexer
 
-data Query
-  = Select (List Selector) (Maybe Query) (Maybe Filter) (Maybe Group)
 
-data Filter
-  = Where Condition
+type Parser expr = StateT (List Lexer.Token) (Either String) expr
 
-data Group
-  = GroupBy Operand
+
+class Parse expr where
+  parse :: Parser expr
+
+
+data Clause
+  = Select Selector (Maybe Clause) (Maybe Condition) (Maybe Index)
+
 
 data Selector
-  = Field String
-  | FieldAs String String
-  | Function Func String String
+  = Single String (Maybe String)
+  | Multiple (List Selector)
+  | Function Lexer.Funktion String (Maybe String)
 
-data Func
-  = Avg
-  | Count
-  | Max
-  | Min
-  | Sum
 
 data Condition
-  = ConditionTerm Operator
-  | And Condition Condition
-  | Or Condition Condition
+  = Term Term
+  | Or Term Term
 
-data Operator
-  = Eq Operand Operand
-  | Neq Operand Operand
-  | Gt Operand Operand
-  | Lt Operand Operand
+
+data Term
+  = Factor Factor
+  | And Factor Factor
+
+
+data Factor
+  = Operand Operand
+  | Binary Lexer.Binary Operand Operand
+
 
 data Operand
-  = OpString String
-  | OpBoolean Boolean
-  | OpNumber Number
-  | OpNull
-  | OpSelector Selector
-
-type Clause a = StateT (Tuple JsonSchema (List Token)) (Either String) a
-
-unwrap :: List Token -> Either String (List Token)
-unwrap tokens =
-  let
-      unwrap' 0 k (Parenthesis P.Open : q) Nil =
-        unwrap' 0 (k + 1) q Nil
-      unwrap' n k (Parenthesis P.Open : q) xs =
-        unwrap' (n + 1) k q (snoc xs (Parenthesis P.Open))
-
-      unwrap' 0 1 (Parenthesis P.Close : q) xs =
-        Right (xs <|> q)
-      unwrap' 0 k (Parenthesis P.Close : q) xs | k > 0 =
-        unwrap' 0 (k - 1) q xs
-      unwrap' n k (Parenthesis P.Close : q) xs | n > 0 =
-        unwrap' (n - 1) k q (snoc xs (Parenthesis P.Close))
-
-      unwrap' n k (h : q) xs =
-        unwrap' n k q (snoc xs h)
-
-      unwrap' 0 0 Nil xs =
-        Right xs
-      unwrap' _ _ Nil Nil =
-        Right Nil
-      unwrap' _ _ Nil xs =
-        Left "parsing error: unbalanced parenthesis expression"
-   in
-      unwrap' 0 0 tokens Nil
+  = String String
+  | Boolean Boolean
+  | Number Decimal
+  | Field String
+  | Null
+  | Condition Condition
 
 
-parse :: Clause Query
-parse = do
-  Tuple schema tokens <- get
-  case unwrap tokens of
-    Right (Keyword K.Select : q) -> do
-      case unwrap q of
-        Left err ->
-          lift $ Left err
-        Right q' -> do
-          put $ Tuple schema (Comma : q')
-          selectors <- parseSelectors
-          query <- parseFrom
-          filter <- parseWhere
-          pure $ Select selectors query filter Nothing
-
-    Right (token:q) ->
-      lift $ Left ("parsing error: invalid token: " <> (show token))
-
-    Right Nil ->
-      lift $ Left "parsing error: empty query"
-
-    Left err ->
-      lift $ Left err
+data Index
+  = IdxField String
+  | IdxNull
 
 
-parseSelectors :: Clause (List Selector)
-parseSelectors = do
-  Tuple schema tokens <- get
-  case unwrap tokens of
-    Right (Comma : (Word w) : (Keyword K.As) : (Word w') : q) -> do
-      put $ Tuple schema q
-      selectors <- parseSelectors
-      pure $ (FieldAs w w') : selectors
 
-    Right (Comma : (Word w) : q) -> do
-      put $ Tuple schema q
-      selectors <- parseSelectors
-      pure $ (Field w) : selectors
+-- INSTANCE PARSE
+instance parseIndex :: Parse Index where
+  parse = do
+    tokens <- get
+    case tokens of
+      Nil ->
+      lift $ Left "parsing error (GROUP BY Index): incomplete expression"
 
-    Right (Comma : q) -> do
-      put $ Tuple schema q
-      pure Nil
+      (Lexer.Word s : q) -> do
+        put q
+        pure $ IdxField s
 
-    Right _ ->
-      pure Nil
+      (Lexer.Keyword Lexer.Null : q) -> do
+        put q
+        pure $ IdxNull
 
-    Left err ->
-      lift $ Left err
+      (Lexer.Parenthesis Lexer.Open : q) -> do
+        put q
+        index :: Index <- parse
+        tokens' <- get
+        case tokens' of
+          (Lexer.Parenthesis Lexer.Close : q') -> do
+            put q'
+            pure $ index
+          _ ->
+            lift $ Left "parsing error (GROUP BY Index): unbalanced parenthesis expression"
 
-
-parseFrom :: Clause (Maybe Query)
-parseFrom = do
-  Tuple schema tokens <- get
-  case unwrap tokens of
-    Right (Keyword K.From : Parenthesis P.Open : q) -> do
-      put $ Tuple schema q
-      query <- parse
-      Tuple schema' tokens' <- get
-      case tokens' of
-        (Parenthesis P.Close : q') -> do
-          put $ Tuple schema' q'
-          pure $ Just query
-        _ ->
-          lift $ Left "parsing error: unbalanced parenthesis expression"
-
-    Right (Keyword K.From : q) -> do
-      lift $ Left "parsing error: FROM clause should be wrapped in parenthesis"
-
-    Right _ ->
-      pure Nothing
-
-    Left err ->
-      lift $ Left err
+      (h : _) ->
+        lift $ Left $ "parsing error (GROUP BY Index): unexpected token: " <> show h
 
 
-parseWhere :: Clause (Maybe Filter)
-parseWhere = do
-  Tuple schema tokens <- get
-  case unwrap tokens of
-    Right (Keyword K.Where : q) -> do
-      put $ Tuple schema q
-      condition <- parseCondition
-      pure $ Just (Where condition)
+instance parseOperand :: Parse Operand where
+  parse = do
+    tokens <- get
+    case tokens of
+      Nil ->
+        lift $ Left "parsing error (WHERE Operand): incomplete expression"
 
-    Right _ ->
-      pure Nothing
+      (Lexer.String s : q) -> do
+        put q
+        pure $ String s
 
-    Left err ->
-      lift $ Left err
+      (Lexer.Boolean b : q) -> do
+        put q
+        pure $ Boolean b
+
+      (Lexer.Number n : q) -> do
+        put q
+        pure $ Number n
+
+      (Lexer.Keyword Lexer.Null : q) -> do
+        put q
+        pure $ Null
+
+      (Lexer.Word s : q) -> do
+        put q
+        pure $ Field s
+
+      (Lexer.Parenthesis Lexer.Open : q) -> do
+        put q
+        condition :: Condition <- parse
+        tokens' <- get
+        case tokens' of
+          (Lexer.Parenthesis Lexer.Close : q') -> do
+            put q'
+            pure $ Condition condition
+          _ ->
+            lift $ Left "parsing error (WHERE Operand): unbalanced parenthesis expression"
+
+      (h : _) ->
+        lift $ Left $ "parsing error (WHERE Operand): unexpected token: " <> show h
 
 
-parseCondition :: Clause Condition
-parseCondition = do
-  Tuple schema tokens <- get
-  case unwrap tokens of
-    Right (Word w : BooleanOp O.Eq : Word w' : q) -> do
-      put $ Tuple schema q
-      pure $ ConditionTerm (Eq (OpSelector (Field w)) (OpSelector (Field w')))
+instance parseFactor :: Parse Factor where
+  parse = do
+    left :: Operand <- parse
+    tokens <- get
+    case tokens of
+      (Lexer.Binary op : q) -> do
+        put q
+        right :: Operand <- parse
+        pure $ Binary op left right
 
-    Right _ ->
-      lift $ Left "not implemented"
-
-    Left err ->
-      lift $ Left err
+      _ ->
+        pure $ Operand left
 
 
--- INSTANCES
-instance showQuery :: Show Query where
-  show (Select xs query filter _) =
+instance parseTerm :: Parse Term where
+  parse = do
+    left :: Factor <- parse
+    tokens <- get
+    case tokens of
+      (Lexer.Keyword Lexer.And : q) -> do
+        put q
+        right :: Factor <- parse
+        pure $ And left right
+
+      _ ->
+        pure $ Factor left
+
+
+instance parseCondition :: Parse Condition where
+  parse = do
+    left :: Term <- parse
+    tokens <- get
+    case tokens of
+      (Lexer.Keyword Lexer.Or : q) -> do
+        put q
+        right :: Term <- parse
+        pure $ Or left right
+
+      _ ->
+        pure $ Term left
+
+
+nextSelector :: String -> Maybe String -> List Lexer.Token -> Parser Selector
+nextSelector w as q = do
+  put q
+  selector :: Selector <- parse
+  case selector of
+    Single _ _ ->
+      pure $ Multiple $ (Single w as) : selector : Nil
+    Function _ _ _ ->
+      pure $ Multiple $ (Single w as) : selector : Nil
+    Multiple xs ->
+      pure $ Multiple $ (Single w as) : xs
+
+
+instance parseSelector :: Parse Selector where
+  parse = do
+    tokens <- get
+    case tokens of
+      Nil ->
+        lift $ Left "parsing error (SELECT Selector): incomplete expression"
+
+      (Lexer.Alias w as : Lexer.Comma : q) -> do
+        nextSelector w (Just as) q
+
+      (Lexer.Alias w as : q) -> do
+        put q
+        pure $ Single w (Just as)
+
+      (Lexer.Word w : Lexer.Comma : q) ->
+        nextSelector w Nothing q
+
+      (Lexer.Word w : q) -> do
+        put q
+        pure $ Single w Nothing
+
+      (Lexer.Function f : q) -> do
+        put q
+        selector :: Selector <- parse
+        case selector of
+          Single w _ -> do
+            tokens' <- get
+            case tokens' of
+              (Lexer.Keyword Lexer.As : Lexer.Word as : q') -> do
+                put q'
+                pure $ Function f w (Just as)
+              _ ->
+                pure $ Function f w Nothing
+
+          _ ->
+            lift $ Left $ "parsing error (SELECT Function): invalid argument for function " <> show f
+
+      (Lexer.Parenthesis Lexer.Open : q) -> do
+        put q
+        selector :: Selector <- parse
+        tokens' <- get
+        case tokens' of
+          (Lexer.Parenthesis Lexer.Close : q') -> do
+            put q'
+            pure $ selector
+
+          _ ->
+            lift $ Left "parsing error (SELECT Selector): unbalanced parenthesis expression"
+
+      (h : _) ->
+        lift $ Left $ "parsing error (SELECT Selector): unexpected token: " <> show h
+
+
+maybeParse :: forall a. Parse a => Lexer.Keyword -> Parser (Maybe a)
+maybeParse key = do
+  tokens <- get
+  case tokens of
+    (Lexer.Keyword key' : q') | key' == key -> do
+      put q'
+      res <- parse
+      pure $ Just res
+    _ ->
+      pure $ Nothing
+
+
+instance parseClause :: Parse Clause where
+  parse = do
+    tokens <- get
+    case tokens of
+      Nil ->
+        lift $ Left "parsing error (SELECT): incomplete expression"
+
+      (Lexer.Keyword Lexer.Select : q) -> do
+        put q
+        selector :: Selector <- parse
+        clause :: Maybe Clause <- maybeParse Lexer.From
+        condition :: Maybe Condition <- maybeParse Lexer.Where
+        index :: Maybe Index <- maybeParse Lexer.GroupBy
+        pure $ Select selector clause condition index
+
+      (Lexer.Parenthesis Lexer.Open : q) -> do
+        put q
+        clause :: Clause <- parse
+        tokens' <- get
+        case tokens' of
+          (Lexer.Parenthesis Lexer.Close : q') -> do
+            put q'
+            pure clause
+
+          _ ->
+            lift $ Left "parsing error (SELECT Selector): unbalanced parenthesis expression"
+
+
+      (h : _) ->
+        lift $ Left $ "parsing error (SELECT): unexpected token: " <> show h
+
+
+
+-- INSTANCE SHOW
+instance showClause :: Show Clause where
+  show (Select selectors clause condition index) =
     let
-        query' = maybe "" (\q -> "\nFROM (" <> (show q) <> ")") query
-        filter' = maybe "" (\f -> "\n" <> (show f)) filter
+        clause' = maybe "" (\x -> " FROM (" <> (show x) <> ")") clause
+        condition' = maybe "" (\x -> " WHERE (" <> (show x) <> ")") condition
+        index' = maybe "" (\x -> " GROUP BY " <> (show x)) index
     in
-        "SELECT " <> (intercalate ", " (map show xs))
-        <> query'
-        <> filter'
+        "SELECT " <> (show selectors)
+        <> clause'
+        <> condition'
+        <> index'
+
 
 instance showSelector :: Show Selector where
-  show (Field s) =
+  show (Single s Nothing) =
     s
-  show (FieldAs s as) =
-    s <> " AS " <> as
-  show (Function f s s') =
-    (show f) <> "(" <> s <> "." <> s' <> ")"
+  show (Single s (Just as)) =
+    "(" <> s <> " AS " <> as <> ")"
+  show (Function f s Nothing) =
+    show f <> "(" <> s <> ")"
+  show (Function f s (Just as)) =
+    "(" <> show f <> "(" <> s <> ")" <> " AS " <> ")"
+  show (Multiple xs) =
+    intercalate ", " (map show xs)
 
-instance showFilter :: Show Filter where
-  show (Where c) =
-    "WHERE " <> (show c)
 
 instance showCondition :: Show Condition where
-  show (ConditionTerm c) =
-    show c
-  show (And c1 c2) =
-    show c1 <> " AND " <> show c2
-  show (Or c1 c2) =
-    show c1 <> " OR " <> show c2
+  show (Term x) =
+    show x
+  show (Or a b) =
+    show a <> " OR " <> show b
 
-instance showOperator :: Show Operator where
-  show (Eq a b) =
-    show a <> " == " <> show b
-  show (Neq a b) =
-    show a <> " /= " <> show b
-  show (Lt a b) =
-    show a <> " < " <> show b
-  show (Gt a b) =
-    show a <> " > " <> show b
+
+instance showTerm :: Show Term where
+  show (Factor x) =
+    show x
+  show (And a b) =
+    show a <> " AND " <> show b
+
+
+instance showFactor :: Show Factor where
+  show (Operand x) =
+    show x
+  show (Binary op a b) =
+    show a <> " " <> show op <> " " <> show b
+
 
 instance showOperand :: Show Operand where
-  show (OpString s) =
-    s
-  show (OpNumber n) =
-    show n
-  show OpNull =
-    "null"
-  show (OpBoolean b) =
-    show b
-  show (OpSelector s) =
-    show s
+  show (String x) =
+    "\"" <> x <> "\""
+  show (Boolean x) =
+    show x
+  show (Number x) =
+    toString x
+  show (Field x) =
+    x
+  show Null =
+    "NULL"
+  show (Condition x) =
+    "(" <> show x <> ")"
 
-instance showFunc :: Show Func where
-  show Avg =
-    "AVG"
-  show Count =
-    "COUNT"
-  show Max =
-    "MAX"
-  show Min =
-    "MIN"
-  show Sum =
-    "SUM"
+
+instance showIndex :: Show Index where
+  show (IdxField x) =
+    x
+  show (IdxNull) =
+    "NULL"
