@@ -1,10 +1,11 @@
 module Ifrit.Lexer
-  ( Keyword(..)
-  , Token(..)
-  , Parenthesis(..)
-  , Binary(..)
-  , Unary(..)
+  ( Binary(..)
+  , Funktion(..)
+  , Keyword(..)
   , Lexer
+  , Parenthesis(..)
+  , Token(..)
+  , Unary(..)
   , tokenize
   ) where
 
@@ -12,8 +13,9 @@ import Prelude
 
 import Control.Alt((<|>))
 import Control.Monad.State(StateT, get, lift, put)
-import Data.Decimal(Decimal, fromString)
+import Data.Decimal(Decimal, fromString, toString)
 import Data.Either(Either(..))
+import Data.List(List(..), (:), snoc)
 import Data.Maybe(Maybe(..))
 import Data.String.Regex(replace)
 import Data.String.Regex.Flags(global)
@@ -33,9 +35,21 @@ data Keyword
   | Select
   | Where
 
+derive instance eqKeyword :: Eq Keyword
+
+
 data Parenthesis
   = Close
   | Open
+
+
+data Funktion
+  = Avg
+  | Count
+  | Max
+  | Min
+  | Sum
+
 
 data Binary
   = Eq
@@ -43,22 +57,28 @@ data Binary
   | Lt
   | Gt
 
+
 data Unary
   = Not
+
 
 data Token
   = Invalid
   | Comma
+  | Function Funktion
   | Parenthesis Parenthesis
   | Keyword Keyword
   | Binary Binary
   | Unary Unary
   | Word String
+  | Alias String String
   | Boolean Boolean
   | String String
   | Number Decimal
 
-type Lexer = StateT { pos :: Int, str :: String } (Either String) (Array Token)
+
+type Lexer = StateT { pos :: Int, str :: String } (Either String) (List Token)
+
 
 
 -- UTILS
@@ -74,28 +94,55 @@ keyword str = unsafePartial $
     "SELECT" -> Select
     "WHERE" -> Where
 
+
+function :: String -> Funktion
+function str = unsafePartial $
+  case trim str of
+    "AVG" -> Avg
+    "COUNT" -> Count
+    "MAX" -> Max
+    "MIN" -> Min
+    "SUM" -> Sum
+
+
 trim :: String -> String
 trim str =
   replace (unsafeRegex "\\s" global) "" str
+
+
+unquote :: String -> String
+unquote str =
+  replace (unsafeRegex "\"" global) "" str
+
 
 parse :: (String -> Token) -> String -> Parser Token
 parse f s =
   f <$> regex ("\\s*" <> s <> "\\s*")
 
+
 parse' :: Token -> String -> Parser Token
 parse' t s =
   parse (\_ -> t) s
 
+
 infixr 7 parse' as </$/>
 infixr 7 parse as </*/>
+
 
 nextKeyword :: Parser Token
 nextKeyword =
   keyword >>> Keyword </*/> "(AND|AS|FROM|GROUP BY|NULL|OR|SELECT|WHERE)"
 
+
+nextFunction :: Parser Token
+nextFunction =
+  function >>> Function </*/> "(AVG|COUNT|MAX|MIN|SUM)"
+
+
 nextUnary :: Parser Token
 nextUnary =
   Unary Not </$/> "NOT"
+
 
 nextBinary :: Parser Token
 nextBinary =
@@ -104,14 +151,6 @@ nextBinary =
   <|> Binary Lt </$/> "<"
   <|> Binary Gt </$/> ">"
 
-nextParenthesis :: Parser Token
-nextParenthesis =
-  Parenthesis Close </$/> "\\)"
-  <|> Parenthesis Open </$/> "\\("
-
-nextComma :: Parser Token
-nextComma =
-  Comma </$/> ","
 
 nextBoolean :: Parser Token
 nextBoolean =
@@ -123,25 +162,40 @@ nextBoolean =
   in
     trim >>> fromString' >>> Boolean </*/> "(true|false)"
 
+
 nextNumber :: Parser Token
 nextNumber =
   let
       fromString' str =
-        case fromString str of
+        case fromString (trim str) of
           Just res ->
             pure $ Number res
           Nothing ->
             fail "invalid number"
    in
-      regex ("\\s*[0-9]*\\.?[0-9]+\\s*") >>= fromString'
+      regex ("\\s*([0-9]*\\.?[0-9]+)\\s*") >>= fromString'
+
 
 nextString :: Parser Token
 nextString =
-  trim >>> String </*/> "\"[a-zA-Z0-9_.]+\""
+  trim >>> unquote >>> String </*/> "\"([a-zA-Z0-9_.]+)\""
+
 
 nextWord :: Parser Token
 nextWord =
-  trim >>> Word </*/> "[a-zA-Z0-9_.]+"
+  trim >>> Word </*/> "([a-zA-Z0-9_.]+)"
+
+
+nextParenthesis :: Parser Token
+nextParenthesis =
+  Parenthesis Close </$/> "\\)"
+  <|> Parenthesis Open </$/> "\\("
+
+
+nextComma :: Parser Token
+nextComma =
+  Comma </$/> ","
+
 
 nextInvalid :: Parser Token
 nextInvalid =
@@ -151,14 +205,15 @@ nextInvalid =
 parser :: Parser Token
 parser =
   nextKeyword
+  <|> nextFunction
   <|> nextUnary
-  <|> nextParenthesis
   <|> nextBinary
-  <|> nextComma
   <|> nextBoolean
   <|> nextNumber
   <|> nextString
   <|> nextWord
+  <|> nextParenthesis
+  <|> nextComma
   <|> nextInvalid
 
 
@@ -172,43 +227,71 @@ tokenize = do
     Right { result: result, suffix } -> do
       put suffix
       tokens <- tokenize
-      pure $ [result] <|> tokens
+      pure $ optimize (result : tokens)
     Left { error: ParseError "no match" } -> do
-      pure $ []
+      pure $ Nil
     Left { error: ParseError err } ->
       lift $ Left err
 
 
--- INSTANCES
+optimize :: List Token -> List Token
+optimize =
+  let
+      optimize' q (Word w : Keyword As : Word as : q') =
+        optimize' (snoc q (Alias w as)) q'
+      optimize' q (h : q') =
+        optimize' (snoc q h) q'
+      optimize' q Nil =
+        q
+  in
+      optimize' Nil
+
+
+-- INSTANCE SHOW
 instance showToken :: (Show Number, Show Keyword) => Show Token where
   show (Keyword k) =
     show k
+  show (Function f) =
+    show f
   show (Word w) =
     w
+  show (Alias w as) =
+    w <> " AS " <> as
   show (String s) =
     "\"" <> s <> "\""
   show (Boolean b) =
     show b
   show (Number n) =
-    show n
+    toString n
   show Comma =
-    "COMMA"
+    ","
   show (Parenthesis Open) =
-    "PARENO"
+    "("
   show (Parenthesis Close) =
-    "PARENC"
-  show (Binary Eq) =
-    "=="
-  show (Binary Neq) =
-    "/="
-  show (Binary Lt) =
-    "<"
-  show (Binary Gt) =
-    ">"
-  show (Unary Not) =
-    "NOT"
+    ")"
+  show (Binary x) =
+    show x
+  show (Unary x) =
+    show x
   show Invalid =
     "INVALID_TOKEN"
+
+
+instance showBinary :: Show Binary where
+  show Eq =
+    "=="
+  show Neq =
+    "/="
+  show Lt =
+    "<"
+  show Gt =
+    ">"
+
+
+instance showUnary :: Show Unary where
+  show Not =
+    "NOT"
+
 
 instance showKeyword :: Show Keyword where
   show Select =
@@ -227,3 +310,16 @@ instance showKeyword :: Show Keyword where
     "OR"
   show Null =
     "NULL"
+
+
+instance showFunktion :: Show Funktion where
+  show Avg =
+    "AVG"
+  show Count =
+    "COUNT"
+  show Max =
+    "MAX"
+  show Min =
+    "MIN"
+  show Sum =
+    "SUM"
