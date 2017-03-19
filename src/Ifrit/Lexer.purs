@@ -42,6 +42,8 @@ data Parenthesis
   = Close
   | Open
 
+derive instance eqParenthesis :: Eq Parenthesis
+
 
 data Funktion
   = Avg
@@ -50,6 +52,8 @@ data Funktion
   | Min
   | Sum
 
+derive instance eqFunktion :: Eq Funktion
+
 
 data Binary
   = Eq
@@ -57,9 +61,13 @@ data Binary
   | Lt
   | Gt
 
+derive instance eqBinary :: Eq Binary
+
 
 data Unary
   = Not
+
+derive instance eqUnary :: Eq Unary
 
 
 data Token
@@ -75,6 +83,8 @@ data Token
   | Boolean Boolean
   | String String
   | Number Decimal
+
+derive instance eqToken :: Eq Token
 
 
 type Lexer = StateT { pos :: Int, str :: String } (Either String) (List Token)
