@@ -2,7 +2,8 @@ module Ifrit.Lexer
   ( Keyword(..)
   , Token(..)
   , Parenthesis(..)
-  , BooleanOp(..)
+  , Binary(..)
+  , Unary(..)
   , Lexer
   , tokenize
   ) where
@@ -11,41 +12,51 @@ import Prelude
 
 import Control.Alt((<|>))
 import Control.Monad.State(StateT, get, lift, put)
+import Data.Decimal(Decimal, fromString)
 import Data.Either(Either(..))
+import Data.Maybe(Maybe(..))
 import Data.String.Regex(replace)
 import Data.String.Regex.Flags(global)
 import Data.String.Regex.Unsafe(unsafeRegex)
 import Partial.Unsafe(unsafePartial)
-import Text.Parsing.StringParser(Parser, ParseError(..), unParser)
+import Text.Parsing.StringParser(Parser, ParseError(..), unParser, fail)
 import Text.Parsing.StringParser.String(regex)
-
 
 -- TYPES
 data Keyword
-  = As
-  | Select
+  = And
+  | As
   | From
   | GroupBy
+  | Null
+  | Or
+  | Select
   | Where
 
 data Parenthesis
   = Close
   | Open
 
-data BooleanOp
+data Binary
   = Eq
   | Neq
   | Lt
   | Gt
 
+data Unary
+  = Not
+
 data Token
-  = Comma
-  | Invalid
-  | Keyword Keyword
-  | Null
+  = Invalid
+  | Comma
   | Parenthesis Parenthesis
-  | BooleanOp BooleanOp
+  | Keyword Keyword
+  | Binary Binary
+  | Unary Unary
   | Word String
+  | Boolean Boolean
+  | String String
+  | Number Decimal
 
 type Lexer = StateT { pos :: Int, str :: String } (Either String) (Array Token)
 
@@ -54,11 +65,14 @@ type Lexer = StateT { pos :: Int, str :: String } (Either String) (Array Token)
 keyword :: String -> Keyword
 keyword str = unsafePartial $
   case trim str of
+    "AND" -> And
+    "AS" -> As
+    "FROM" -> From
+    "GROUPBY" -> GroupBy
+    "NULL" -> Null
+    "OR" -> Or
     "SELECT" -> Select
     "WHERE" -> Where
-    "FROM" -> From
-    "AS" -> As
-    "GROUPBY" -> GroupBy
 
 trim :: String -> String
 trim str =
@@ -77,27 +91,53 @@ infixr 7 parse as </*/>
 
 nextKeyword :: Parser Token
 nextKeyword =
-  keyword >>> Keyword </*/> "(SELECT|WHERE|FROM|AS|GROUP BY)"
+  keyword >>> Keyword </*/> "(AND|AS|FROM|GROUP BY|NULL|OR|SELECT|WHERE)"
 
-nextNull :: Parser Token
-nextNull =
-  Null </$/> "null"
+nextUnary :: Parser Token
+nextUnary =
+  Unary Not </$/> "NOT"
+
+nextBinary :: Parser Token
+nextBinary =
+  Binary Eq </$/> "=="
+  <|> Binary Neq </$/> "/="
+  <|> Binary Lt </$/> "<"
+  <|> Binary Gt </$/> ">"
 
 nextParenthesis :: Parser Token
 nextParenthesis =
   Parenthesis Close </$/> "\\)"
   <|> Parenthesis Open </$/> "\\("
 
-nextBooleanOp :: Parser Token
-nextBooleanOp =
-  BooleanOp Eq </$/> "=="
-  <|> BooleanOp Neq </$/> "/="
-  <|> BooleanOp Lt </$/> "<"
-  <|> BooleanOp Gt </$/> ">"
-
 nextComma :: Parser Token
 nextComma =
   Comma </$/> ","
+
+nextBoolean :: Parser Token
+nextBoolean =
+  let
+      fromString' "true" =
+        true
+      fromString' _ =
+        false
+  in
+    trim >>> fromString' >>> Boolean </*/> "(true|false)"
+
+nextNumber :: Parser Token
+nextNumber =
+  let
+      fromString' str =
+        case fromString str of
+          Just res ->
+            pure $ Number res
+          Nothing ->
+            fail "invalid number"
+   in
+      regex ("\\s*[0-9]*\\.?[0-9]+\\s*") >>= fromString'
+
+nextString :: Parser Token
+nextString =
+  trim >>> String </*/> "\"[a-zA-Z0-9_.]+\""
 
 nextWord :: Parser Token
 nextWord =
@@ -111,10 +151,13 @@ nextInvalid =
 parser :: Parser Token
 parser =
   nextKeyword
-  <|> nextNull
+  <|> nextUnary
   <|> nextParenthesis
-  <|> nextBooleanOp
+  <|> nextBinary
   <|> nextComma
+  <|> nextBoolean
+  <|> nextNumber
+  <|> nextString
   <|> nextWord
   <|> nextInvalid
 
@@ -142,22 +185,28 @@ instance showToken :: (Show Number, Show Keyword) => Show Token where
     show k
   show (Word w) =
     w
-  show Null =
-    "null"
+  show (String s) =
+    "\"" <> s <> "\""
+  show (Boolean b) =
+    show b
+  show (Number n) =
+    show n
   show Comma =
-    "`,`"
+    "COMMA"
   show (Parenthesis Open) =
-    "("
+    "PARENO"
   show (Parenthesis Close) =
-    ")"
-  show (BooleanOp Eq) =
+    "PARENC"
+  show (Binary Eq) =
     "=="
-  show (BooleanOp Neq) =
+  show (Binary Neq) =
     "/="
-  show (BooleanOp Lt) =
+  show (Binary Lt) =
     "<"
-  show (BooleanOp Gt) =
+  show (Binary Gt) =
     ">"
+  show (Unary Not) =
+    "NOT"
   show Invalid =
     "INVALID_TOKEN"
 
@@ -172,3 +221,9 @@ instance showKeyword :: Show Keyword where
     "AS"
   show From =
     "FROM"
+  show And =
+    "AND"
+  show Or =
+    "OR"
+  show Null =
+    "NULL"
