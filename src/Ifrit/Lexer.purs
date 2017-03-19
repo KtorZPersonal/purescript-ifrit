@@ -233,7 +233,10 @@ tokenize = do
     Left { error: ParseError err } ->
       lift $ Left err
 
-
+-- NOTE This is done in order to reduce the complexity of future pattern matching.
+-- psc gets a bit crazy / slow when trying to figure out all possible matches
+-- in a case of looking for the first 3 / 4 elements of a list. This may be moved
+-- to the parser directly...
 optimize :: List Token -> List Token
 optimize =
   let
