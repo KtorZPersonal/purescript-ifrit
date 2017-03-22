@@ -86,7 +86,7 @@ GROUP BY class
 [
     {
         "$project": {
-            "class": "class",
+            "class": "$class",
             "power": {
                 "divide": [
                     {
@@ -99,7 +99,7 @@ GROUP BY class
                         }
                     },
                     {
-                        "$size": "spells"
+                        "$size": "$spells"
                     }
                 ]
             }
