@@ -156,8 +156,8 @@ nextUnary =
 
 nextBinary :: Parser Token
 nextBinary =
-  Binary Eq </$/> "=="
-  <|> Binary Neq </$/> "/="
+  Binary Neq </$/> "!="
+  <|> Binary Eq </$/> "="
   <|> Binary Lt </$/> "<"
   <|> Binary Gt </$/> ">"
 
@@ -293,9 +293,9 @@ instance showToken :: (Show Number, Show Keyword) => Show Token where
 
 instance showBinary :: Show Binary where
   show Eq =
-    "=="
+    "="
   show Neq =
-    "/="
+    "!="
   show Lt =
     "<"
   show Gt =

@@ -9,7 +9,7 @@ import Control.Monad.State(evalStateT, runStateT)
 import Data.Argonaut.Core(Json, JAssoc, jsonEmptyObject, jsonZero, jsonNull, toArray)
 import Data.Argonaut.Encode(encodeJson, extend, (:=), (~>))
 import Data.Array(concat)
-import Data.Decimal(toString)
+import Data.Decimal(toNumber)
 import Data.Either(Either(..))
 import Data.Foldable(foldr)
 import Data.List as L
@@ -74,7 +74,7 @@ ingestSelector' :: Parser.Selector -> Either String JAssoc
 ingestSelector' selector =
   case selector of
     Parser.Single s as ->
-      Right $ defaultAlias s as := s
+      Right $ defaultAlias s as := ("$" <> s)
 
     Parser.Function Lexer.Avg s as ->
       case split (Pattern ".") s of
@@ -275,9 +275,9 @@ instance ingestOperand :: Ingest Parser.Operand where
   ingest (Parser.String s) =
     pure $ encodeJson s
   ingest (Parser.Boolean b) =
-    pure $ encodeJson $ show b
+    pure $ encodeJson b
   ingest (Parser.Number d) =
-    pure $ encodeJson $ toString d
+    pure $ encodeJson $ toNumber d
   ingest (Parser.Field s) =
     pure $ encodeJson $ "$" <> s
   ingest (Parser.Null) =
