@@ -3,113 +3,97 @@ module Test.Main where
 
 import Prelude
 
-import Control.Monad.Aff(Aff)
-import Control.Monad.Aff.AVar(AVAR)
-import Control.Monad.Eff(Eff)
-import Control.Monad.Eff.Class(liftEff)
-import Control.Monad.Eff.Console(CONSOLE)
-import Control.Monad.Eff.Exception(EXCEPTION)
-import Control.Monad.State(runStateT)
-import Data.Argonaut.Core(Json, toObject)
-import Data.Argonaut.Decode(decodeJson)
-import Data.Argonaut.Decode.Combinators((.?), (.??))
-import Data.Argonaut.Encode(encodeJson)
-import Data.Argonaut.Parser(jsonParser)
-import Data.Array(foldl)
+import Control.Monad.State(evalStateT)
+import Data.Decimal(fromNumber)
 import Data.Either(Either(..))
-import Data.Filterable(filterMap)
-import Data.Maybe(Maybe(..))
-import Data.Traversable(traverse)
-import Data.Tuple(Tuple(..))
-import Ifrit.Core(Pipeline, JsonSchema)
-import Ifrit.Drivers.MongoDB(ingest)
-import Node.Encoding (Encoding(..))
-import Node.FS(FS)
-import Node.FS.Sync as FS
-import Node.Globals(__dirname)
-import Node.Path(concat, extname)
-import Test.Unit (Test, test, failure, success)
-import Test.Unit.Assert as Assert
-import Test.Unit.Console (TESTOUTPUT)
+import Data.List(fromFoldable)
+import Test.Unit (suite, test)
 import Test.Unit.Main (runTest)
+import Test.Unit.Assert as Assert
 
-testDir :: String
-testDir =
-  concat [__dirname, "..", "..", "test", "fixtures"]
+import Ifrit.Lexer as L
 
-maybeSpec :: String -> String -> Maybe String
-maybeSpec base file =
-  if extname file == ".json"
-  then Just (concat [base, file])
-  else Nothing
+main = runTest do
+  suite "lexer" do
+    test "Nil" do
+      Assert.equal
+        (evalStateT L.tokenize
+          { pos: 0
+          , str: ""
+          })
+        (Right $ fromFoldable [])
 
-loadFixtures :: forall e. String -> Aff (fs :: FS, err :: EXCEPTION | e) (Either String (Array Json))
-loadFixtures dir = liftEff do
-  files <- FS.readdir dir
-  values <- traverse (FS.readTextFile UTF8) (filterMap (maybeSpec dir) files)
-  pure $ traverse jsonParser values
+    test "[0] SELECT patate" do
+      Assert.equal
+        (evalStateT L.tokenize
+          { pos: 0
+          , str: "SELECT patate"
+          })
+        (Right $ fromFoldable
+          [ L.Keyword L.Select
+          , L.Word "patate"
+          ])
 
+    test "[0] SELECT (patate)" do
+      Assert.equal
+        (evalStateT L.tokenize
+          { pos: 0
+          , str: "SELECT (patate)"
+          })
+        (Right $ fromFoldable
+          [ L.Keyword L.Select
+          , L.Parenthesis L.Open
+          , L.Word "patate"
+          , L.Parenthesis L.Close
+          ])
 
-fromFixture :: forall e. Json -> Either String (Test (fs :: FS, err :: EXCEPTION | e))
-fromFixture json =
-  case toObject json of
-    Nothing ->
-      Left "invalid provided fixture: not a valid JSON object"
+    test "[0] patate     GROUP BY patate" do
+      Assert.equal
+        (evalStateT L.tokenize
+          { pos: 0
+          , str: "patate     GROUP BY patate"
+          })
+        (Right $ fromFoldable
+          [ L.Word "patate"
+          , L.Keyword  L.GroupBy
+          , L.Word "patate"
+          ])
 
-    Just obj ->
-      do
-        (schema_in :: JsonSchema) <- obj .? "schema_in" >>= decodeJson
-        (pipeline_in :: Pipeline) <- obj .? "pipeline_in" >>= decodeJson
-        (error :: Maybe String) <- obj .?? "error"
-        (pipeline_out :: Maybe Json) <- obj .?? "pipeline_out"
-        (schema_out :: Maybe Json) <- obj .?? "schema_out"
+    test "[2] - NULL patate AS alias" do
+      Assert.equal
+        (evalStateT L.tokenize
+          { pos: 2
+          , str: "- NULL patate AS alias"
+          })
+        (Right $ fromFoldable
+          [ L.Keyword L.Null
+          , L.Alias "patate" "alias"
+          ])
 
-        case Tuple error [schema_out, pipeline_out] of
-          --
-          -- Error Scenarios
-          --
-          Tuple (Just error') [Nothing, Nothing] ->
-            case runStateT (ingest pipeline_in) schema_in of
-              Right _ ->
-                Left "expected ingest to fail but was successful"
-              Left error'' ->
-                pure $ Assert.equal error' error''
+    test "[0] WHERE ? == patate" do
+      Assert.equal
+        (evalStateT L.tokenize
+          { pos: 0
+          , str: "WHERE ? == patate"
+          })
+          (Left "invalid token at position 6")
 
-          --
-          -- Successful Scenarios
-          --
-          Tuple Nothing [Just schema_out', Just pipeline_out'] ->
-            case runStateT (ingest pipeline_in) schema_in of
-              Right (Tuple pipeline_out'' schema_out'') ->
-                pure $ do
-                  Assert.equal pipeline_out' pipeline_out''
-                  Assert.equal schema_out' (encodeJson schema_out'')
-              Left err ->
-                Left err
-
-          --
-          -- Weirdly Formatted Fixtures
-          --
-          _ ->
-           Left "invalid provided fixture: properties messed up"
-
-
-main :: Eff
-  ( fs :: FS
-  , err :: EXCEPTION
-  , console :: CONSOLE
-  , testOutput :: TESTOUTPUT
-  , avar :: AVAR
-  ) Unit
-main =
-  let
-    mongodbSuite = test "mongodb" do
-      fixtures <- loadFixtures (concat [testDir, "mongodb"])
-      let tests = fixtures >>= traverse fromFixture
-      case tests of
-        Left err ->
-          failure err
-        Right tests' ->
-          foldl (*>) success tests'
-  in
-    runTest mongodbSuite
+    test "[0] FROM AVG(patate) > 14 OR .42 /= 1.14" do
+      Assert.equal
+        (evalStateT L.tokenize
+          { pos: 0
+          , str: "FROM AVG(patate) > 14 OR .42 /= 1.14"
+          })
+        (Right $ fromFoldable
+          [ L.Keyword L.From
+          , L.Function L.Avg
+          , L.Parenthesis L.Open
+          , L.Word "patate"
+          , L.Parenthesis L.Close
+          , L.Binary L.Gt
+          , L.Number (fromNumber 14.0)
+          , L.Keyword L.Or
+          , L.Number (fromNumber 0.42)
+          , L.Binary L.Neq
+          , L.Number (fromNumber 1.14)
+          ])
