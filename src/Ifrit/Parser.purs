@@ -22,26 +22,36 @@ class Parse expr where
 data Clause
   = Select Selector (Maybe Clause) (Maybe Condition) (Maybe Index)
 
+derive instance eqClause :: Eq Clause
+
 
 data Selector
   = Single String (Maybe String)
   | Multiple (List Selector)
   | Function Lexer.Funktion String (Maybe String)
 
+derive instance eqSelector :: Eq Selector
+
 
 data Condition
   = Term Term
   | Or Term Term
+
+derive instance eqCondition :: Eq Condition
 
 
 data Term
   = Factor Factor
   | And Factor Factor
 
+derive instance eqTerm :: Eq Term
+
 
 data Factor
   = Operand Operand
   | Binary Lexer.Binary Operand Operand
+
+derive instance eqFactor :: Eq Factor
 
 
 data Operand
@@ -52,10 +62,14 @@ data Operand
   | Null
   | Condition Condition
 
+derive instance eqOperand :: Eq Operand
+
 
 data Index
   = IdxField String
   | IdxNull
+
+derive instance eqIndex :: Eq Index
 
 
 

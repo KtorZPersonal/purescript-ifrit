@@ -78,7 +78,7 @@ SELECT MAX(spells.power) AS max_power
 
 ```sql
 SELECT AVG(power)
-FROM (SELECT class, AVG(spells.power) as power)
+FROM (SELECT class, AVG(spells.power) AS power)
 GROUP BY class 
 ```
 
