@@ -76,9 +76,6 @@ instance parseIndex :: Parse Index where
   parse = do
     tokens <- get
     case tokens of
-      Nil ->
-      lift $ Left "parsing error (GROUP BY Index): incomplete expression"
-
       (Lexer.Word s : q) -> do
         put q
         pure $ IdxField s
@@ -96,19 +93,19 @@ instance parseIndex :: Parse Index where
             put q'
             pure $ index
           _ ->
-            lift $ Left "parsing error (GROUP BY Index): unbalanced parenthesis expression"
+            lift $ Left "parsing error: unbalanced parenthesis expression"
 
       (h : _) ->
-        lift $ Left $ "parsing error (GROUP BY Index): unexpected token: " <> show h
+        lift $ Left $ "parsing error: unexpected token: " <> show h
+
+      Nil ->
+      lift $ Left "parsing error: incomplete expression"
 
 
 instance parseOperand :: Parse Operand where
   parse = do
     tokens <- get
     case tokens of
-      Nil ->
-        lift $ Left "parsing error (WHERE Operand): incomplete expression"
-
       (Lexer.String s : q) -> do
         put q
         pure $ String s
@@ -138,10 +135,13 @@ instance parseOperand :: Parse Operand where
             put q'
             pure $ Condition condition
           _ ->
-            lift $ Left "parsing error (WHERE Operand): unbalanced parenthesis expression"
+            lift $ Left "parsing error: unbalanced parenthesis expression"
 
       (h : _) ->
-        lift $ Left $ "parsing error (WHERE Operand): unexpected token: " <> show h
+        lift $ Left $ "parsing error: unexpected token: " <> show h
+
+      Nil ->
+        lift $ Left "parsing error: incomplete expression"
 
 
 instance parseFactor :: Parse Factor where
@@ -198,18 +198,23 @@ instance parseSelector :: Parse Selector where
         put q
         pure $ Selector w Nothing
 
-      (Lexer.Function f : q) -> do
+      (Lexer.Function f : Lexer.Parenthesis Lexer.Open : q) -> do
         put q
         selectors :: List Selector <- parse
         case selectors of
           (Selector w Nothing : Nil) -> do
             tokens' <- get
             case tokens' of
-              (Lexer.Keyword Lexer.As : Lexer.Word as : q') -> do
+              (Lexer.Parenthesis Lexer.Close : Lexer.Keyword Lexer.As : Lexer.Word as : q') -> do
                 put q'
                 pure $ Function f w (Just as)
-              _ ->
+
+              (Lexer.Parenthesis Lexer.Close : q') -> do
+                put q'
                 pure $ Function f w Nothing
+
+              _ ->
+                lift $ Left $ "parsing error: unbalanced parenthesis expression"
           _ ->
             lift $ Left $ "parsing error: invalid argument(s) for function " <> show f
 
@@ -245,59 +250,6 @@ instance parseListSelector :: Parse (List Selector) where
         pure $ selector : Nil
 
 
---instance parseSelector :: Parse Selector where
---  parse = do
---    tokens <- get
---    case tokens of
---      Nil ->
---        lift $ Left "parsing error (SELECT Selector): incomplete expression"
---
---      (Lexer.Alias w as : Lexer.Comma : q) -> do
---        nextSelector w (Just as) q
---
---      (Lexer.Alias w as : q) -> do
---        put q
---        pure $ Single w (Just as)
---
---      (Lexer.Word w : Lexer.Comma : q) ->
---        nextSelector w Nothing q
---
---      (Lexer.Word w : q) -> do
---        put q
---        pure $ Single w Nothing
---
---      (Lexer.Function f : q) -> do
---        put q
---        selector :: Selector <- parse
---        case selector of
---          Single w _ -> do
---            tokens' <- get
---            case tokens' of
---              (Lexer.Keyword Lexer.As : Lexer.Word as : q') -> do
---                put q'
---                pure $ Function f w (Just as)
---              _ ->
---                pure $ Function f w Nothing
---
---          _ ->
---            lift $ Left $ "parsing error (SELECT Function): invalid argument for function " <> show f
---
---      (Lexer.Parenthesis Lexer.Open : q) -> do
---        put q
---        selector :: Selector <- parse
---        tokens' <- get
---        case tokens' of
---          (Lexer.Parenthesis Lexer.Close : q') -> do
---            put q'
---            pure $ selector
---
---          _ ->
---            lift $ Left "parsing error (SELECT Selector): unbalanced parenthesis expression"
---
---      (h : _) ->
---        lift $ Left $ "parsing error (SELECT Selector): unexpected token: " <> show h
-
-
 maybeParse :: forall a. Parse a => Lexer.Keyword -> Parser (Maybe a)
 maybeParse key = do
   tokens <- get
@@ -325,26 +277,21 @@ instance parseStatement :: Parse Statement where
         index :: Maybe Index <- maybeParse Lexer.GroupBy
         tokens' <- get
         case tokens' of
-          (Lexer.EOF : Nil) ->
+          (Lexer.EOF : Nil) -> do
+            pure $ Select selectors statement condition index
+          (Lexer.Parenthesis Lexer.Close : q') -> do
+            put q'
             pure $ Select selectors statement condition index
           _ ->
-            lift $ Left "parsin error (SELECT): invalid tokens after SELECT statement"
+          lift $ Left "parsing error: invalid end of input"
 
       (Lexer.Parenthesis Lexer.Open : q) -> do
         put q
         statement :: Statement <- parse
-        tokens' <- get
-        case tokens' of
-          (Lexer.Parenthesis Lexer.Close : q') -> do
-            put q'
-            pure statement
-
-          _ ->
-            lift $ Left "parsing error (SELECT Selector): unbalanced parenthesis expression"
-
+        pure statement
 
       (h : _) ->
-        lift $ Left $ "parsing error (SELECT): unexpected token: " <> show h
+        lift $ Left $ "parsing error: unexpected token: " <> show h
 
 
 
