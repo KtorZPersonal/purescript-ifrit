@@ -19,10 +19,10 @@ class Parse expr where
   parse :: Parser expr
 
 
-data Clause
-  = Select Selector (Maybe Clause) (Maybe Condition) (Maybe Index)
+data Statement
+  = Select Selector (Maybe Statement) (Maybe Condition) (Maybe Index)
 
-derive instance eqClause :: Eq Clause
+derive instance eqStatement :: Eq Statement
 
 
 data Selector
@@ -266,7 +266,7 @@ maybeParse key = do
       pure $ Nothing
 
 
-instance parseClause :: Parse Clause where
+instance parseStatement :: Parse Statement where
   parse = do
     tokens <- get
     case tokens of
@@ -276,24 +276,24 @@ instance parseClause :: Parse Clause where
       (Lexer.Keyword Lexer.Select : q) -> do
         put q
         selector :: Selector <- parse
-        clause :: Maybe Clause <- maybeParse Lexer.From
+        statement :: Maybe Statement <- maybeParse Lexer.From
         condition :: Maybe Condition <- maybeParse Lexer.Where
         index :: Maybe Index <- maybeParse Lexer.GroupBy
         tokens' <- get
         case tokens' of
           (Lexer.EOF : Nil) ->
-            pure $ Select selector clause condition index
+            pure $ Select selector statement condition index
           _ ->
             lift $ Left "parsin error (SELECT): invalid tokens after SELECT statement"
 
       (Lexer.Parenthesis Lexer.Open : q) -> do
         put q
-        clause :: Clause <- parse
+        statement :: Statement <- parse
         tokens' <- get
         case tokens' of
           (Lexer.Parenthesis Lexer.Close : q') -> do
             put q'
-            pure clause
+            pure statement
 
           _ ->
             lift $ Left "parsing error (SELECT Selector): unbalanced parenthesis expression"
@@ -305,15 +305,15 @@ instance parseClause :: Parse Clause where
 
 
 -- INSTANCE SHOW
-instance showClause :: Show Clause where
-  show (Select selectors clause condition index) =
+instance showStatement :: Show Statement where
+  show (Select selectors statement condition index) =
     let
-        clause' = maybe "" (\x -> " FROM (" <> (show x) <> ")") clause
+        statement' = maybe "" (\x -> " FROM (" <> (show x) <> ")") statement
         condition' = maybe "" (\x -> " WHERE (" <> (show x) <> ")") condition
         index' = maybe "" (\x -> " GROUP BY " <> (show x)) index
     in
         "SELECT " <> (show selectors)
-        <> clause'
+        <> statement'
         <> condition'
         <> index'
 

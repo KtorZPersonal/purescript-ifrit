@@ -34,7 +34,7 @@ type Pipeline = Either String Json
 compile :: String -> Either String Json
 compile query = do
   tokens <- evalStateT Lexer.tokenize { pos: 0, str: query }
-  Tuple (ast :: Parser.Clause) tokens' <- runStateT Parser.parse tokens
+  Tuple (ast :: Parser.Statement) tokens' <- runStateT Parser.parse tokens
   if L.length tokens' > 0
     then Left $ "unexpected end of query: " <> (L.intercalate " " (map show tokens'))
     else ingest ast
@@ -189,8 +189,8 @@ ingestSelector' selector =
       Left $ "invalid selector"
 
 
-unwrapClause :: Json -> Array Json
-unwrapClause json = unsafePartial $
+unwrapStatement :: Json -> Array Json
+unwrapStatement json = unsafePartial $
   case (toArray json) of
     Just xs ->
       xs
@@ -202,24 +202,24 @@ maybeIngest fn =
   maybe (pure []) (ingest >=> (\x -> pure $ fn x))
 
 
-instance ingestClause :: Ingest Parser.Clause where
-  ingest (Parser.Select selector clause condition Nothing) = do
+instance ingestStatement :: Ingest Parser.Statement where
+  ingest (Parser.Select selector statement condition Nothing) = do
     selector' <- ingest selector
-    clause' <- maybeIngest unwrapClause clause
+    statement' <- maybeIngest unwrapStatement statement
     condition' <- maybeIngest (\x -> [singleton "$match" x]) condition
     pure $ encodeJson $ concat
-      [ clause'
+      [ statement'
       , condition'
       , [ singleton "$project" selector' ]
       ]
 
-  ingest (Parser.Select selector clause condition (Just index)) = do
+  ingest (Parser.Select selector statement condition (Just index)) = do
     selector' <- ingest selector
-    clause' <- maybeIngest unwrapClause clause
+    statement' <- maybeIngest unwrapStatement statement
     condition' <- maybeIngest (\x -> [singleton "$match" x]) condition
     index' <- ingest index
     pure $ encodeJson $ concat
-      [ clause'
+      [ statement'
       , condition'
       , [ singleton "$group" (("_id" := index') ~> selector') ]
       ]
