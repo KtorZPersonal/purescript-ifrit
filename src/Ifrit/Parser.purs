@@ -3,7 +3,6 @@ module Ifrit.Parser where
 import Prelude
 
 import Control.Monad.State(StateT, get, lift, put)
-import Data.Array(intercalate)
 import Data.Decimal(Decimal, toString)
 import Data.Either(Either(..))
 import Data.List(List(..), (:))
@@ -20,14 +19,13 @@ class Parse expr where
 
 
 data Statement
-  = Select Selector (Maybe Statement) (Maybe Condition) (Maybe Index)
+  = Select (List Selector) (Maybe Statement) (Maybe Condition) (Maybe Index)
 
 derive instance eqStatement :: Eq Statement
 
 
 data Selector
-  = Single String (Maybe String)
-  | Multiple (List Selector)
+  = Selector String (Maybe String)
   | Function Lexer.Funktion String (Maybe String)
 
 derive instance eqSelector :: Eq Selector
@@ -188,45 +186,23 @@ instance parseCondition :: Parse Condition where
         pure $ Term left
 
 
-nextSelector :: String -> Maybe String -> List Lexer.Token -> Parser Selector
-nextSelector w as q = do
-  put q
-  selector :: Selector <- parse
-  case selector of
-    Single _ _ ->
-      pure $ Multiple $ (Single w as) : selector : Nil
-    Function _ _ _ ->
-      pure $ Multiple $ (Single w as) : selector : Nil
-    Multiple xs ->
-      pure $ Multiple $ (Single w as) : xs
-
-
 instance parseSelector :: Parse Selector where
   parse = do
     tokens <- get
     case tokens of
-      Nil ->
-        lift $ Left "parsing error (SELECT Selector): incomplete expression"
-
-      (Lexer.Alias w as : Lexer.Comma : q) -> do
-        nextSelector w (Just as) q
-
-      (Lexer.Alias w as : q) -> do
+      (Lexer.Word w : Lexer.Keyword Lexer.As : Lexer.Word as : q) -> do
         put q
-        pure $ Single w (Just as)
-
-      (Lexer.Word w : Lexer.Comma : q) ->
-        nextSelector w Nothing q
+        pure $ Selector w (Just as)
 
       (Lexer.Word w : q) -> do
         put q
-        pure $ Single w Nothing
+        pure $ Selector w Nothing
 
       (Lexer.Function f : q) -> do
         put q
-        selector :: Selector <- parse
-        case selector of
-          Single w _ -> do
+        selectors :: List Selector <- parse
+        case selectors of
+          (Selector w Nothing : Nil) -> do
             tokens' <- get
             case tokens' of
               (Lexer.Keyword Lexer.As : Lexer.Word as : q') -> do
@@ -234,9 +210,8 @@ instance parseSelector :: Parse Selector where
                 pure $ Function f w (Just as)
               _ ->
                 pure $ Function f w Nothing
-
           _ ->
-            lift $ Left $ "parsing error (SELECT Function): invalid argument for function " <> show f
+            lift $ Left $ "parsing error: invalid argument(s) for function " <> show f
 
       (Lexer.Parenthesis Lexer.Open : q) -> do
         put q
@@ -248,10 +223,79 @@ instance parseSelector :: Parse Selector where
             pure $ selector
 
           _ ->
-            lift $ Left "parsing error (SELECT Selector): unbalanced parenthesis expression"
+            lift $ Left $ "parsing error: unbalanced parenthesis expression"
 
-      (h : _) ->
-        lift $ Left $ "parsing error (SELECT Selector): unexpected token: " <> show h
+      (h : _) -> do
+        lift $ Left $ "parsing error: unexpected token: " <> show h
+
+      Nil -> do
+        lift $ Left  "parsing error: empty expression"
+
+
+instance parseListSelector :: Parse (List Selector) where
+  parse = do
+    selector :: Selector <- parse
+    tokens <- get
+    case tokens of
+      (Lexer.Comma : q) -> do
+        put q
+        selectors :: List Selector <- parse
+        pure $ selector : selectors
+      _ -> do
+        pure $ selector : Nil
+
+
+--instance parseSelector :: Parse Selector where
+--  parse = do
+--    tokens <- get
+--    case tokens of
+--      Nil ->
+--        lift $ Left "parsing error (SELECT Selector): incomplete expression"
+--
+--      (Lexer.Alias w as : Lexer.Comma : q) -> do
+--        nextSelector w (Just as) q
+--
+--      (Lexer.Alias w as : q) -> do
+--        put q
+--        pure $ Single w (Just as)
+--
+--      (Lexer.Word w : Lexer.Comma : q) ->
+--        nextSelector w Nothing q
+--
+--      (Lexer.Word w : q) -> do
+--        put q
+--        pure $ Single w Nothing
+--
+--      (Lexer.Function f : q) -> do
+--        put q
+--        selector :: Selector <- parse
+--        case selector of
+--          Single w _ -> do
+--            tokens' <- get
+--            case tokens' of
+--              (Lexer.Keyword Lexer.As : Lexer.Word as : q') -> do
+--                put q'
+--                pure $ Function f w (Just as)
+--              _ ->
+--                pure $ Function f w Nothing
+--
+--          _ ->
+--            lift $ Left $ "parsing error (SELECT Function): invalid argument for function " <> show f
+--
+--      (Lexer.Parenthesis Lexer.Open : q) -> do
+--        put q
+--        selector :: Selector <- parse
+--        tokens' <- get
+--        case tokens' of
+--          (Lexer.Parenthesis Lexer.Close : q') -> do
+--            put q'
+--            pure $ selector
+--
+--          _ ->
+--            lift $ Left "parsing error (SELECT Selector): unbalanced parenthesis expression"
+--
+--      (h : _) ->
+--        lift $ Left $ "parsing error (SELECT Selector): unexpected token: " <> show h
 
 
 maybeParse :: forall a. Parse a => Lexer.Keyword -> Parser (Maybe a)
@@ -275,14 +319,14 @@ instance parseStatement :: Parse Statement where
 
       (Lexer.Keyword Lexer.Select : q) -> do
         put q
-        selector :: Selector <- parse
+        selectors :: List Selector <- parse
         statement :: Maybe Statement <- maybeParse Lexer.From
         condition :: Maybe Condition <- maybeParse Lexer.Where
         index :: Maybe Index <- maybeParse Lexer.GroupBy
         tokens' <- get
         case tokens' of
           (Lexer.EOF : Nil) ->
-            pure $ Select selector statement condition index
+            pure $ Select selectors statement condition index
           _ ->
             lift $ Left "parsin error (SELECT): invalid tokens after SELECT statement"
 
@@ -319,16 +363,14 @@ instance showStatement :: Show Statement where
 
 
 instance showSelector :: Show Selector where
-  show (Single s Nothing) =
+  show (Selector s Nothing) =
     s
-  show (Single s (Just as)) =
+  show (Selector s (Just as)) =
     "(" <> s <> " AS " <> as <> ")"
   show (Function f s Nothing) =
     show f <> "(" <> s <> ")"
   show (Function f s (Just as)) =
     "(" <> show f <> "(" <> s <> ")" <> " AS " <> ")"
-  show (Multiple xs) =
-    intercalate ", " (map show xs)
 
 
 instance showCondition :: Show Condition where

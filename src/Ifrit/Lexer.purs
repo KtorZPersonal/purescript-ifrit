@@ -15,7 +15,7 @@ import Control.Alt((<|>))
 import Control.Monad.State(StateT, get, lift, put)
 import Data.Decimal(Decimal, fromString, toString)
 import Data.Either(Either(..))
-import Data.List(List(..), (:), snoc)
+import Data.List(List(..), (:))
 import Data.Maybe(Maybe(..), maybe)
 import Data.String(charAt, length)
 import Data.String.Regex(replace)
@@ -81,7 +81,6 @@ data Token
   | Binary Binary
   | Unary Unary
   | Word String
-  | Alias String String
   | Boolean Boolean
   | String String
   | Number Decimal
@@ -232,30 +231,13 @@ tokenize = do
     Right { result: result, suffix } -> do
       put suffix
       tokens <- tokenize
-      pure $ optimize (result : tokens)
+      pure $ (result : tokens)
     Left { error: ParseError "no match" } -> do
       if pos == length str
         then pure $ EOF : Nil
         else lift $ Left ("invalid token " <> maybe "" show (charAt pos str) <> " at position " <> show pos)
     Left { error: ParseError err } ->
       lift $ Left err
-
-
--- NOTE This is done in order to reduce the complexity of future pattern matching.
--- psc gets a bit crazy / slow when trying to figure out all possible matches
--- in a case of looking for the first 3 / 4 elements of a list. This may be moved
--- to the parser directly...
-optimize :: List Token -> List Token
-optimize =
-  let
-      optimize' q (Word w : Keyword As : Word as : q') =
-        optimize' (snoc q (Alias w as)) q'
-      optimize' q (h : q') =
-        optimize' (snoc q h) q'
-      optimize' q Nil =
-        q
-  in
-      optimize' Nil
 
 
 -- INSTANCE SHOW
@@ -266,8 +248,6 @@ instance showToken :: (Show Number, Show Keyword) => Show Token where
     show f
   show (Word w) =
     w
-  show (Alias w as) =
-    w <> " AS " <> as
   show (String s) =
     "\"" <> s <> "\""
   show (Boolean b) =

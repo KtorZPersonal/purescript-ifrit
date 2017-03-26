@@ -73,7 +73,9 @@ main = runTest do
           })
         (Right $ fromFoldable
           [ L.Keyword L.Null
-          , L.Alias "patate" "alias"
+          , L.Word "patate"
+          , L.Keyword L.As
+          , L.Word "alias"
           , L.EOF
           ])
 
@@ -115,7 +117,9 @@ main = runTest do
           , L.EOF
           ]))
         (Right $ P.Select
-          (P.Single "patate" Nothing)
+          (fromFoldable
+              [ P.Selector "patate" Nothing
+              ])
           Nothing
           Nothing
           Nothing
@@ -125,11 +129,15 @@ main = runTest do
       Assert.equal
         (evalStateT P.parse (fromFoldable
           [ L.Keyword L.Select
-          , L.Alias "patate" "autruche"
+          , L.Word "patate"
+          , L.Keyword L.As
+          , L.Word "autruche"
           , L.EOF
           ]))
         (Right $ P.Select
-          (P.Single "patate" (Just "autruche"))
+          (fromFoldable
+              [ P.Selector "patate" (Just "autruche")
+              ])
           Nothing
           Nothing
           Nothing
@@ -147,9 +155,9 @@ main = runTest do
           , L.EOF
           ]))
         (Right $ P.Select
-          (P.Multiple $ fromFoldable
-              [ P.Single "patate" Nothing
-              , P.Single "autruche" Nothing
+          (fromFoldable
+              [ P.Selector "patate" Nothing
+              , P.Selector "autruche" Nothing
               ])
           Nothing
           Nothing
@@ -168,7 +176,9 @@ main = runTest do
           , L.EOF
           ]))
         (Right $ P.Select
-          (P.Single "patate" Nothing)
+          (fromFoldable
+              [ P.Selector "patate" Nothing
+              ])
           Nothing
           (Just $ P.Term $ P.Factor $ P.Binary
               L.Gt (P.Field "autruche") (P.Number (fromInt 14)

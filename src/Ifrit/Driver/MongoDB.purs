@@ -12,9 +12,10 @@ import Data.Array(concat)
 import Data.Decimal(toNumber)
 import Data.Either(Either(..))
 import Data.Foldable(foldr)
-import Data.List as L
+import Data.List(List)
+import Data.List as List
 import Data.Maybe(Maybe(..), maybe)
-import Data.StrMap as M
+import Data.StrMap as StrMap
 import Data.String(Pattern(..), split)
 import Data.Tuple(Tuple(..))
 import Partial.Unsafe(unsafePartial)
@@ -35,15 +36,15 @@ compile :: String -> Either String Json
 compile query = do
   tokens <- evalStateT Lexer.tokenize { pos: 0, str: query }
   Tuple (ast :: Parser.Statement) tokens' <- runStateT Parser.parse tokens
-  if L.length tokens' > 0
-    then Left $ "unexpected end of query: " <> (L.intercalate " " (map show tokens'))
+  if List.length tokens' > 0
+    then Left $ "unexpected end of query: " <> (List.intercalate " " (map show tokens'))
     else ingest ast
 
 
 
 -- UTILITIES
 object :: Array (Tuple String Json) -> Json
-object = M.fromFoldable >>> encodeJson
+object = StrMap.fromFoldable >>> encodeJson
 
 
 singleton :: String -> Json -> Json
@@ -51,7 +52,7 @@ singleton k x = object [Tuple k x]
 
 
 list :: Array Json -> Json
-list = L.fromFoldable >>> encodeJson
+list = List.fromFoldable >>> encodeJson
 
 
 defaultAlias :: String -> Maybe String -> String
@@ -73,7 +74,7 @@ ingestBinary Lexer.Gt = "$gt"
 ingestSelector' :: Parser.Selector -> Either String JAssoc
 ingestSelector' selector =
   case selector of
-    Parser.Single s as ->
+    Parser.Selector s as ->
       Right $ defaultAlias s as := ("$" <> s)
 
     Parser.Function Lexer.Avg s as ->
@@ -185,9 +186,6 @@ ingestSelector' selector =
         _ ->
           Right $ defaultAlias s as := singleton "sum" (encodeJson $ "$" <> s)
 
-    _ ->
-      Left $ "invalid selector"
-
 
 unwrapStatement :: Json -> Array Json
 unwrapStatement json = unsafePartial $
@@ -225,14 +223,16 @@ instance ingestStatement :: Ingest Parser.Statement where
       ]
 
 
-instance ingestSelector :: Ingest Parser.Selector where
-  ingest (Parser.Multiple xs) =
+instance ingestListSelector :: Ingest (List Parser.Selector) where
+  ingest xs =
     let
         selectors = map ingestSelector' xs
         init = Right jsonEmptyObject
     in
         map encodeJson (foldr extendM init selectors)
 
+
+instance ingestSelector :: Ingest Parser.Selector where
   ingest s =
     extendM (ingestSelector' s) (Right jsonEmptyObject)
 
