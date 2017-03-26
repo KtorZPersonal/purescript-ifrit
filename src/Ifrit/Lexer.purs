@@ -16,13 +16,15 @@ import Control.Monad.State(StateT, get, lift, put)
 import Data.Decimal(Decimal, fromString, toString)
 import Data.Either(Either(..))
 import Data.List(List(..), (:), snoc)
-import Data.Maybe(Maybe(..))
+import Data.Maybe(Maybe(..), maybe)
+import Data.String(charAt, length)
 import Data.String.Regex(replace)
 import Data.String.Regex.Flags(global)
 import Data.String.Regex.Unsafe(unsafeRegex)
 import Partial.Unsafe(unsafePartial)
 import Text.Parsing.StringParser(Parser, ParseError(..), unParser, fail)
 import Text.Parsing.StringParser.String(regex)
+
 
 -- TYPES
 data Keyword
@@ -83,6 +85,7 @@ data Token
   | Boolean Boolean
   | String String
   | Number Decimal
+  | EOF
 
 derive instance eqToken :: Eq Token
 
@@ -207,11 +210,6 @@ nextComma =
   Comma </$/> ","
 
 
-nextInvalid :: Parser Token
-nextInvalid =
-  Invalid </$/> "[^\\s]"
-
-
 parser :: Parser Token
 parser =
   nextKeyword
@@ -224,7 +222,6 @@ parser =
   <|> nextWord
   <|> nextParenthesis
   <|> nextComma
-  <|> nextInvalid
 
 
 -- EXPORTS
@@ -232,14 +229,14 @@ tokenize :: Lexer
 tokenize = do
   { pos, str } <- get
   case unParser parser { pos, str } of
-    Right { result: Invalid, suffix } -> do
-      lift $ Left ("invalid token at position " <> show pos)
     Right { result: result, suffix } -> do
       put suffix
       tokens <- tokenize
       pure $ optimize (result : tokens)
     Left { error: ParseError "no match" } -> do
-      pure $ Nil
+      if pos == length str
+        then pure $ EOF : Nil
+        else lift $ Left ("invalid token " <> maybe "" show (charAt pos str) <> " at position " <> show pos)
     Left { error: ParseError err } ->
       lift $ Left err
 
@@ -289,6 +286,8 @@ instance showToken :: (Show Number, Show Keyword) => Show Token where
     show x
   show Invalid =
     "INVALID_TOKEN"
+  show EOF =
+    "EOF"
 
 
 instance showBinary :: Show Binary where

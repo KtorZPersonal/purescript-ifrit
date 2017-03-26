@@ -24,7 +24,7 @@ main = runTest do
           { pos: 0
           , str: ""
           })
-        (Right $ fromFoldable [])
+        (Right $ fromFoldable [L.EOF])
 
     test "[0] SELECT patate" do
       Assert.equal
@@ -35,6 +35,7 @@ main = runTest do
         (Right $ fromFoldable
           [ L.Keyword L.Select
           , L.Word "patate"
+          , L.EOF
           ])
 
     test "[0] SELECT (patate)" do
@@ -48,6 +49,7 @@ main = runTest do
           , L.Parenthesis L.Open
           , L.Word "patate"
           , L.Parenthesis L.Close
+          , L.EOF
           ])
 
     test "[0] patate     GROUP BY patate" do
@@ -60,6 +62,7 @@ main = runTest do
           [ L.Word "patate"
           , L.Keyword  L.GroupBy
           , L.Word "patate"
+          , L.EOF
           ])
 
     test "[2] - NULL patate AS alias" do
@@ -71,6 +74,7 @@ main = runTest do
         (Right $ fromFoldable
           [ L.Keyword L.Null
           , L.Alias "patate" "alias"
+          , L.EOF
           ])
 
     test "[0] WHERE ? = patate" do
@@ -79,7 +83,7 @@ main = runTest do
           { pos: 0
           , str: "WHERE ? = patate"
           })
-          (Left "invalid token at position 6")
+          (Left "invalid token '?' at position 6")
 
     test "[0] FROM AVG(patate) > 14 OR .42 != 1.14" do
       Assert.equal
@@ -99,6 +103,7 @@ main = runTest do
           , L.Number (fromNumber 0.42)
           , L.Binary L.Neq
           , L.Number (fromNumber 1.14)
+          , L.EOF
           ])
 
   suite "parser" do
@@ -107,6 +112,7 @@ main = runTest do
         (evalStateT P.parse (fromFoldable
           [ L.Keyword L.Select
           , L.Word "patate"
+          , L.EOF
           ]))
         (Right $ P.Select
           (P.Single "patate" Nothing)
@@ -120,6 +126,7 @@ main = runTest do
         (evalStateT P.parse (fromFoldable
           [ L.Keyword L.Select
           , L.Alias "patate" "autruche"
+          , L.EOF
           ]))
         (Right $ P.Select
           (P.Single "patate" (Just "autruche"))
@@ -137,6 +144,7 @@ main = runTest do
           , L.Parenthesis L.Close
           , L.Comma
           , L.Word "autruche"
+          , L.EOF
           ]))
         (Right $ P.Select
           (P.Multiple $ fromFoldable
@@ -157,6 +165,7 @@ main = runTest do
           , L.Word "autruche"
           , L.Binary L.Gt
           , L.Number (fromInt 14)
+          , L.EOF
           ]))
         (Right $ P.Select
           (P.Single "patate" Nothing)

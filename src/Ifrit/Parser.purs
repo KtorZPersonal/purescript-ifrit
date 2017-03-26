@@ -279,7 +279,12 @@ instance parseClause :: Parse Clause where
         clause :: Maybe Clause <- maybeParse Lexer.From
         condition :: Maybe Condition <- maybeParse Lexer.Where
         index :: Maybe Index <- maybeParse Lexer.GroupBy
-        pure $ Select selector clause condition index
+        tokens' <- get
+        case tokens' of
+          (Lexer.EOF : Nil) ->
+            pure $ Select selector clause condition index
+          _ ->
+            lift $ Left "parsin error (SELECT): invalid tokens after SELECT statement"
 
       (Lexer.Parenthesis Lexer.Open : q) -> do
         put q
