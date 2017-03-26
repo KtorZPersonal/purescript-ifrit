@@ -6,6 +6,7 @@ import Control.Monad.Aff.AVar(AVAR)
 import Control.Monad.Eff(Eff)
 import Control.Monad.Eff.Console(CONSOLE)
 import Control.Monad.State(evalStateT)
+import Data.Argonaut.Parser(jsonParser)
 import Data.Decimal(fromNumber, fromInt)
 import Data.Either(Either(..))
 import Data.List(fromFoldable)
@@ -17,6 +18,7 @@ import Test.Unit.Main (runTest)
 
 import Ifrit.Lexer as L
 import Ifrit.Parser as P
+import Ifrit.Driver.MongoDB(compile)
 
 
 main :: Eff (avar :: AVAR, console :: CONSOLE, testOutput :: TESTOUTPUT) Unit
@@ -394,3 +396,53 @@ main = runTest do
           , L.Parenthesis L.Close
           , L.EOF
           ]))
+
+  suite "driver - MongoDB" do
+    test "SELECT SUM(lvl) GROUP BY age" do
+      Assert.equal
+        (jsonParser
+          """
+          [
+            {
+              "$group": {
+                "_id": "$age",
+                "lvl": {
+                  "$sum": "$lvl"
+                }
+              }
+            }
+          ]
+          """)
+        (compile "SELECT SUM(lvl) GROUP BY age")
+
+    test "SELECT MAX(spells.power) AS max_power" do
+      Assert.equal
+        (jsonParser
+          """
+          [
+            {
+              "$project": {
+                "max_power": {
+                  "$reduce": {
+                    "input": "$spells",
+                    "in": {
+                      "$cond": {
+                        "if": {
+                          "$or": [
+                            { "$eq": ["$$value", null] },
+                            { "$gt": ["$power", "$$value"] }
+                          ]
+                        },
+                        "then": "$power",
+                        "else": "$$value"
+                      }
+                    },
+                    "initialValue": null
+                  }
+                }
+              }
+            }
+          ]
+          """)
+          (compile "SELECT MAX(spells.power) AS max_power")
+

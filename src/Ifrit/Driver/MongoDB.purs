@@ -1,11 +1,14 @@
 module Ifrit.Driver.MongoDB
-  (compile
+  ( class Ingest
+  , Pipeline
+  , ingest
+  , compile
   ) where
 
 import Prelude
 
 import Control.Apply(lift2)
-import Control.Monad.State(evalStateT, runStateT)
+import Control.Monad.State(evalStateT)
 import Data.Argonaut.Core(Json, JAssoc, jsonEmptyObject, jsonZero, jsonNull, toArray)
 import Data.Argonaut.Encode(encodeJson, extend, (:=), (~>))
 import Data.Array(concat)
@@ -25,21 +28,16 @@ import Ifrit.Lexer as Lexer
 
 
 -- CLASS & TYPES
+type Pipeline = Either String Json
+
 class Ingest stage where
   ingest :: stage -> Pipeline
 
-
-type Pipeline = Either String Json
-
-
-compile :: String -> Either String Json
+compile :: String -> Pipeline
 compile query = do
   tokens <- evalStateT Lexer.tokenize { pos: 0, str: query }
-  Tuple (ast :: Parser.Statement) tokens' <- runStateT Parser.parse tokens
-  if List.length tokens' > 0
-    then Left $ "unexpected end of query: " <> (List.intercalate " " (map show tokens'))
-    else ingest ast
-
+  ast :: Parser.Statement <- evalStateT Parser.parse tokens
+  ingest ast
 
 
 -- UTILITIES
@@ -184,7 +182,7 @@ ingestSelector' selector =
           in
               Right $ alias := singleton "$reduce" reduce
         _ ->
-          Right $ defaultAlias s as := singleton "sum" (encodeJson $ "$" <> s)
+          Right $ defaultAlias s as := singleton "$sum" (encodeJson $ "$" <> s)
 
 
 unwrapStatement :: Json -> Array Json
