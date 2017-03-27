@@ -132,9 +132,8 @@ main = runTest do
       Assert.equal
         (Right $ P.Select
           (fromFoldable
-            [ P.Selector "patate" Nothing
+            [ P.Projection $ P.Selector "patate" Nothing
             ])
-          Nothing
           Nothing
           Nothing
         )
@@ -148,9 +147,8 @@ main = runTest do
       Assert.equal
         (Right $ P.Select
           (fromFoldable
-            [ P.Selector "patate" (Just "autruche")
+            [ P.Projection $ P.Selector "patate" (Just "autruche")
             ])
-          Nothing
           Nothing
           Nothing
         )
@@ -166,10 +164,9 @@ main = runTest do
       Assert.equal
         (Right $ P.Select
           (fromFoldable
-            [ P.Selector "patate" Nothing
-            , P.Selector "autruche" Nothing
+            [ P.Projection $ P.Selector "patate" Nothing
+            , P.Projection $ P.Selector "autruche" Nothing
             ])
-          Nothing
           Nothing
           Nothing
         )
@@ -187,13 +184,12 @@ main = runTest do
       Assert.equal
         (Right $ P.Select
           (fromFoldable
-            [ P.Selector "patate" Nothing
+            [ P.Projection $ P.Selector "patate" Nothing
             ])
           Nothing
           (Just $ P.Term $ P.Factor $ P.Binary
             L.Gt (P.Field "autruche") (P.Number (fromInt 14)
           ))
-          Nothing
         )
         (evalStateT P.parse (fromFoldable
           [ L.Keyword L.Select
@@ -209,17 +205,15 @@ main = runTest do
       Assert.equal
         (Right $ P.Select
           (fromFoldable
-            [ P.Selector "patate" Nothing
+            [ P.Projection $ P.Selector "patate" Nothing
             ])
           (Just $ P.Select
             (fromFoldable
-              [ P.Selector "autruche" Nothing
+              [ P.Projection $ P.Selector "autruche" Nothing
               ])
             Nothing
             Nothing
-            Nothing
           )
-          Nothing
           Nothing
         )
         (evalStateT P.parse (fromFoldable
@@ -235,13 +229,13 @@ main = runTest do
 
     test "SELECT patate GROUP BY NULL" do
       Assert.equal
-        (Right $ P.Select
+        (Right $ P.Group
+          P.IdxNull
           (fromFoldable
-            [ P.Selector "patate" Nothing
+            [ P.Aggregation $ P.Selector "patate" Nothing
             ])
           Nothing
           Nothing
-          (Just $ P.IdxNull)
         )
         (evalStateT P.parse (fromFoldable
           [ L.Keyword L.Select
@@ -278,15 +272,15 @@ main = runTest do
 
     test "SELECT patate WHERE 14.0 = 42.0 GROUP BY autruche" do
       Assert.equal
-        (Right $ P.Select
+        (Right $ P.Group
+          (P.IdxField "autruche")
           (fromFoldable
-            [ P.Selector "patate" Nothing
+            [ P.Aggregation $ P.Selector "patate" Nothing
             ])
           Nothing
           (Just $ P.Term $ P.Factor $ P.Binary
             L.Eq (P.Number (fromNumber 14.0)) (P.Number (fromNumber 42.0))
           )
-          (Just $ P.IdxField "autruche")
         )
         (evalStateT P.parse (fromFoldable
           [ L.Keyword L.Select
@@ -304,14 +298,13 @@ main = runTest do
       Assert.equal
         (Right $ P.Select
           (fromFoldable
-            [ P.Function L.Avg "patate" Nothing
-            , P.Function L.Count "things" (Just "c")
+            [ P.Projection $ P.Function L.Avg "patate" Nothing
+            , P.Projection $ P.Function L.Count "things" (Just "c")
             ])
           Nothing
           (Just $ P.Term $ P.Factor $ P.Binary
             L.Neq (P.Field "autruche") (P.String "banana")
           )
-          Nothing
         )
         (evalStateT P.parse (fromFoldable
           [ L.Keyword L.Select
@@ -375,9 +368,8 @@ main = runTest do
       Assert.equal
         (Right $ P.Select
           (fromFoldable
-            [ P.Selector "patate" Nothing
+            [ P.Projection $ P.Selector "patate" Nothing
             ])
-          Nothing
           Nothing
           Nothing
         )
@@ -397,6 +389,13 @@ main = runTest do
           , L.EOF
           ]))
 
+
+  --  ____       _
+  -- |  _ \ _ __(_)_   _____ _ __
+  -- | | | | '__| \ \ / / _ \ '__|
+  -- | |_| | |  | |\ V /  __/ |
+  -- |____/|_|  |_| \_/ \___|_|
+  --
   suite "driver - MongoDB" do
     test "SELECT SUM(lvl) GROUP BY age" do
       Assert.equal

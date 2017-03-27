@@ -69,8 +69,8 @@ ingestBinary Lexer.Lt = "$lt"
 ingestBinary Lexer.Gt = "$gt"
 
 
-ingestSelector' :: Parser.Selector -> Either String JAssoc
-ingestSelector' selector =
+ingestProjection' :: Parser.Projection -> Either String JAssoc
+ingestProjection' (Parser.Projection selector) =
   case selector of
     Parser.Selector s as ->
       Right $ defaultAlias s as := ("$" <> s)
@@ -185,6 +185,28 @@ ingestSelector' selector =
           Right $ defaultAlias s as := singleton "$sum" (encodeJson $ "$" <> s)
 
 
+ingestAggregation' :: Parser.Aggregation -> Either String JAssoc
+ingestAggregation' (Parser.Aggregation selector) =
+  case selector of
+    Parser.Selector s as ->
+      Right $ defaultAlias s as := ("$" <> s)
+
+    Parser.Function Lexer.Avg s as ->
+      Right $ defaultAlias s as := singleton "$avg" (encodeJson $ "$" <> s)
+
+    Parser.Function Lexer.Count s as ->
+      Right $ defaultAlias "count" as := singleton "$sum" (encodeJson 1)
+
+    Parser.Function Lexer.Max s as ->
+      Right $ defaultAlias s as := singleton "$max" (encodeJson $ "$" <> s)
+
+    Parser.Function Lexer.Min s as ->
+      Right $ defaultAlias s as := singleton "$min" (encodeJson $ "$" <> s)
+
+    Parser.Function Lexer.Sum s as ->
+      Right $ defaultAlias s as := singleton "$sum" (encodeJson $ "$" <> s)
+
+
 unwrapStatement :: Json -> Array Json
 unwrapStatement json = unsafePartial $
   case (toArray json) of
@@ -199,40 +221,44 @@ maybeIngest fn =
 
 
 instance ingestStatement :: Ingest Parser.Statement where
-  ingest (Parser.Select selector statement condition Nothing) = do
-    selector' <- ingest selector
+  ingest (Parser.Select projections statement condition) = do
+    projections' <- ingest projections
     statement' <- maybeIngest unwrapStatement statement
     condition' <- maybeIngest (\x -> [singleton "$match" x]) condition
     pure $ encodeJson $ concat
       [ statement'
       , condition'
-      , [ singleton "$project" selector' ]
+      , [ singleton "$project" projections' ]
       ]
 
-  ingest (Parser.Select selector statement condition (Just index)) = do
-    selector' <- ingest selector
+  ingest (Parser.Group index aggregations statement condition) = do
+    aggregations' <- ingest aggregations
     statement' <- maybeIngest unwrapStatement statement
     condition' <- maybeIngest (\x -> [singleton "$match" x]) condition
     index' <- ingest index
     pure $ encodeJson $ concat
       [ statement'
       , condition'
-      , [ singleton "$group" (("_id" := index') ~> selector') ]
+      , [ singleton "$group" (("_id" := index') ~> aggregations') ]
       ]
 
 
-instance ingestListSelector :: Ingest (List Parser.Selector) where
+instance ingestProjection :: Ingest (List Parser.Projection) where
   ingest xs =
     let
-        selectors = map ingestSelector' xs
+        projections = map ingestProjection' xs
         init = Right jsonEmptyObject
     in
-        map encodeJson (foldr extendM init selectors)
+        map encodeJson (foldr extendM init projections)
 
 
-instance ingestSelector :: Ingest Parser.Selector where
-  ingest s =
-    extendM (ingestSelector' s) (Right jsonEmptyObject)
+instance ingestAggregation :: Ingest (List Parser.Aggregation) where
+  ingest xs =
+    let
+        aggregations= map ingestAggregation' xs
+        init = Right jsonEmptyObject
+    in
+        map encodeJson (foldr extendM init aggregations)
 
 
 instance ingestCondition :: Ingest Parser.Condition where

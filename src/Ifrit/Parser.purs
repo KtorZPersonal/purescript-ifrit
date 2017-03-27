@@ -1,11 +1,24 @@
-module Ifrit.Parser where
+module Ifrit.Parser
+  (class Parse
+  , Parser
+  , Aggregation(..)
+  , Condition(..)
+  , Factor(..)
+  , Index(..)
+  , Operand(..)
+  , Projection(..)
+  , Selector(..)
+  , Statement(..)
+  , Term(..)
+  , parse
+  ) where
 
 import Prelude
 
 import Control.Monad.State(StateT, get, lift, put)
 import Data.Decimal(Decimal, toString)
 import Data.Either(Either(..))
-import Data.List(List(..), (:))
+import Data.List(List(..), (:), intercalate)
 import Data.Maybe(Maybe(..), maybe)
 
 import Ifrit.Lexer as Lexer
@@ -19,9 +32,22 @@ class Parse expr where
 
 
 data Statement
-  = Select (List Selector) (Maybe Statement) (Maybe Condition) (Maybe Index)
+  = Select (List Projection) (Maybe Statement) (Maybe Condition)
+  | Group Index (List Aggregation) (Maybe Statement) (Maybe Condition)
 
 derive instance eqStatement :: Eq Statement
+
+
+data Projection
+  = Projection Selector
+
+derive instance eqProjection :: Eq Projection
+
+
+data Aggregation
+  = Aggregation Selector
+
+derive instance eqAggregation :: Eq Aggregation
 
 
 data Selector
@@ -262,6 +288,15 @@ maybeParse key = do
       pure $ Nothing
 
 
+combine :: List Selector -> Maybe Statement -> Maybe Condition -> Maybe Index -> Statement
+combine selectors statement condition index =
+  case index of
+    Nothing ->
+      Select (map Projection selectors) statement condition
+    Just index' ->
+      Group index' (map Aggregation selectors) statement condition
+
+
 instance parseStatement :: Parse Statement where
   parse = do
     tokens <- get
@@ -278,10 +313,10 @@ instance parseStatement :: Parse Statement where
         tokens' <- get
         case tokens' of
           (Lexer.EOF : Nil) -> do
-            pure $ Select selectors statement condition index
+            pure $ combine selectors statement condition index
           (Lexer.Parenthesis Lexer.Close : q') -> do
             put q'
-            pure $ Select selectors statement condition index
+            pure $ combine selectors statement condition index
           _ ->
           lift $ Left "parsing error: invalid end of input"
 
@@ -297,16 +332,32 @@ instance parseStatement :: Parse Statement where
 
 -- INSTANCE SHOW
 instance showStatement :: Show Statement where
-  show (Select selectors statement condition index) =
+  show (Select projections statement condition) =
     let
+        projections' = "SELECT " <> (intercalate ", " (map show projections))
         statement' = maybe "" (\x -> " FROM (" <> (show x) <> ")") statement
         condition' = maybe "" (\x -> " WHERE (" <> (show x) <> ")") condition
-        index' = maybe "" (\x -> " GROUP BY " <> (show x)) index
     in
-        "SELECT " <> (show selectors)
-        <> statement'
-        <> condition'
-        <> index'
+        projections' <> statement' <> condition'
+
+  show (Group index aggregations statement condition) =
+    let
+        aggregations' = "SELECT " <> (intercalate ", " (map show aggregations))
+        statement' = maybe "" (\x -> " FROM (" <> (show x) <> ")") statement
+        condition' = maybe "" (\x -> " WHERE (" <> (show x) <> ")") condition
+        index' = " GROUP BY " <> (show index)
+    in
+        aggregations' <> statement' <> condition' <> index'
+
+
+instance showProjection :: Show Projection where
+  show (Projection selector) =
+    show selector
+
+
+instance showAggregation :: Show Aggregation where
+  show (Aggregation selector) =
+    show selector
 
 
 instance showSelector :: Show Selector where
