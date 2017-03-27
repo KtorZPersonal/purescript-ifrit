@@ -189,7 +189,7 @@ ingestAggregation' :: Parser.Aggregation -> Either String JAssoc
 ingestAggregation' (Parser.Aggregation selector) =
   case selector of
     Parser.Selector s as ->
-      Right $ defaultAlias s as := ("$" <> s)
+      Right $ defaultAlias s as := singleton "$push" (encodeJson $ "$" <> s)
 
     Parser.Function Lexer.Avg s as ->
       Right $ defaultAlias s as := singleton "$avg" (encodeJson $ "$" <> s)
