@@ -2,11 +2,12 @@ module Ifrit.Semantic
   ( Schema(..)
   , analyze
   , fromJson
+  , fromString
   ) where
 
 import Prelude
 
-import Data.Argonaut.Core(foldJson, stringify)
+import Data.Argonaut.Core(Json, foldJson, stringify)
 import Data.Argonaut.Decode(class DecodeJson, decodeJson)
 import Data.Argonaut.Encode(class EncodeJson, encodeJson)
 import Data.Argonaut.Parser(jsonParser)
@@ -33,9 +34,13 @@ data Schema
   | Null
 
 
-fromJson :: String -> Either String Schema
+fromString :: String -> Either String Schema
+fromString =
+  jsonParser >=> fromJson
+
+fromJson :: Json -> Either String Schema
 fromJson =
-  jsonParser >=> decodeJson
+  decodeJson
 
 
 lookupProjection :: Schema -> StrMap Schema -> Parser.Projection -> Either String (StrMap Schema)
@@ -105,10 +110,10 @@ lookupAggregation schema acc (Parser.Aggregation selector) =
         case split (Pattern ".") key of
           [_] ->
             case StrMap.lookup key source of
-              Just (Array Number) ->
+              Just Number ->
                 Right $ StrMap.insert (maybe key (\x -> x) as) Number acc
               Just _ ->
-                Left $ "invalid operation: function '" <> show f <> "' applied to non array<number>"
+                Left $ "invalid operation: function '" <> show f <> "' applied to non number"
               Nothing ->
                 Left $ "unexisting field: '" <> key <> "'"
 
