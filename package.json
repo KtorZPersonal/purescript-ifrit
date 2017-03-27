@@ -1,0 +1,34 @@
+{
+  "name": "ifrit",
+  "version": "1.0.0",
+  "description": "An SQL to NoSQL compiler for data aggregation ",
+  "main": "dist/index.js",
+  "scripts": {
+    "doc": "jsdoc dist/index.js -t node_modules/minami -d doc",
+    "build-psc": "pulp build -O -j 4 --skip-entry-point --main 'Ifrit.Core' --src-path src/Ifrit --to dist/bundle.js",
+    "build-export": "echo 'module.exports = PS;' >> dist/bundle.js",
+    "build-minify": "google-closure-compiler-js dist/bundle.js > dist/bundle.min.js && rm dist/bundle.js",
+    "build": "npm run build-psc && npm run build-export && npm run build-minify"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/KtorZ/purescript-ifrit.git"
+  },
+  "keywords": [
+    "sql",
+    "nosql",
+    "compilation",
+    "aggregation"
+  ],
+  "author": "Matthias Benkort <matthias.benkort@gmail.com>",
+  "license": "MPL-2.0",
+  "bugs": {
+    "url": "https://github.com/KtorZ/purescript-ifrit/issues"
+  },
+  "homepage": "https://github.com/KtorZ/purescript-ifrit#readme",
+  "devDependencies": {
+    "google-closure-compiler-js": "^20170218.0.0",
+    "jsdoc": "^3.4.3",
+    "minami": "^1.1.1"
+  }
+}
