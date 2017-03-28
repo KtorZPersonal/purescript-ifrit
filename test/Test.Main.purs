@@ -445,3 +445,83 @@ main = runTest do
           """)
           (compile "SELECT MAX(spells.power) AS max_power")
 
+    test "SELECT AVG(power) FROM (SELECT class, AVG(spells.power) AS power) GROUP BY class" do
+      Assert.equal
+        (jsonParser
+          """
+          [
+            {
+              "$project": {
+                "class": "$class",
+                "power": {
+                  "$divide": [
+                    {
+                      "$reduce": {
+                        "input": "$spells",
+                        "initialValue": 0,
+                        "in": {
+                          "$add": ["$$value", "$power"]
+                        }
+                      }
+                    },
+                    {
+                      "$size": "$spells"
+                    }
+                  ]
+                }
+              }
+            },
+            {
+              "$group": {
+                "_id": "$class",
+                "power": {
+                  "$avg": "$power"
+                }
+              }
+            }
+          ]
+          """)
+          (compile "SELECT AVG(power) FROM (SELECT class, AVG(spells.power) AS power) GROUP BY class")
+
+    test "SELECT name WHERE age < 16" do
+      Assert.equal
+        (jsonParser
+          """
+          [
+            {
+              "$match": {
+                "$lt": ["$age", 16]
+              }
+            },
+            {
+              "$project": {
+                "name": "$name"
+              }
+            }
+          ]
+          """)
+          (compile "SELECT name WHERE age < 16")
+
+    test "SELECT AVG(power) AS pwr WHERE age < 16 AND class = \"necromancer\"" do
+      Assert.equal
+        (jsonParser
+          """
+          [
+            {
+              "$match": {
+                "$and": [
+                  { "$lt": ["$age", 16] },
+                  { "$eq": ["$class", "necromancer"] }
+                ]
+              }
+            },
+            {
+              "$project": {
+                "pwr": {
+                  "$avg": "$power"
+                }
+              }
+            }
+          ]
+          """)
+          (compile "SELECT AVG(power) AS pwr WHERE age < 16 AND class = \"necromancer\"")

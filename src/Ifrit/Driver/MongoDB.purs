@@ -91,10 +91,10 @@ ingestProjection' (Parser.Projection selector) =
                 ]
               divide = list
                 [ singleton "$reduce" reduce
-                , singleton "$size" (encodeJson source)
+                , singleton "$size" (encodeJson $ "$" <> source)
                 ]
           in
-              Right $ alias := singleton "divide" divide
+              Right $ alias := singleton "$divide" divide
         _ ->
           Right $ defaultAlias s as := singleton "$avg" (encodeJson $ "$" <> s)
 

@@ -17,6 +17,9 @@ class Compile driver where
 
 newtype MongoDB = MongoDB Json
 
+instance showMongoDB :: Show MongoDB where
+  show (MongoDB json) =
+    show json
 
 instance compileMongoDB :: Compile MongoDB where
   compile inputSchema input = do
@@ -26,3 +29,4 @@ instance compileMongoDB :: Compile MongoDB where
     schema <- Semantic.analyze schemaIn ast
     output <- MongoDB.ingest ast
     pure { schema: encodeJson schema, output: MongoDB output }
+
