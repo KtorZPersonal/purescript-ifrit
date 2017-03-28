@@ -27,6 +27,7 @@
   },
   "homepage": "https://github.com/KtorZ/purescript-ifrit#readme",
   "devDependencies": {
+    "benchmark": "^2.1.3",
     "google-closure-compiler-js": "^20170218.0.0",
     "jsdoc": "^3.4.3",
     "minami": "^1.1.1"
