@@ -29,4 +29,3 @@ instance compileMongoDB :: Compile MongoDB where
     schema <- Semantic.analyze schemaIn ast
     output <- MongoDB.ingest ast
     pure { schema: encodeJson schema, output: MongoDB output }
-
