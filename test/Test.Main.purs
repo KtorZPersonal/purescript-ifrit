@@ -16,9 +16,10 @@ import Test.Unit.Assert as Assert
 import Test.Unit.Console(TESTOUTPUT)
 import Test.Unit.Main (runTest)
 
+import Ifrit.Driver.MongoDB(compile)
 import Ifrit.Lexer as L
 import Ifrit.Parser as P
-import Ifrit.Driver.MongoDB(compile)
+import Ifrit.Semantic as S
 
 
 main :: Eff (avar :: AVAR, console :: CONSOLE, testOutput :: TESTOUTPUT) Unit
@@ -118,6 +119,20 @@ main = runTest do
         (evalStateT L.tokenize
           { pos: 0
           , str: "FROM AVG(patate) > 14 OR .42 != 1.14"
+          })
+
+    test "[0] WHERE patate = NULL" do
+      Assert.equal
+        (Right $ fromFoldable
+          [ L.Keyword L.Where
+          , L.Word "patate"
+          , L.Binary L.Eq
+          , L.Keyword L.Null
+          , L.EOF
+          ])
+        (evalStateT L.tokenize
+          { pos: 0
+          , str: "WHERE patate = NULL"
           })
 
 
@@ -389,6 +404,27 @@ main = runTest do
           , L.EOF
           ]))
 
+    test "SELECT patate WHERE patate = NULL" do
+      Assert.equal
+        (Right $ P.Select
+          (fromFoldable
+            [ P.Projection $ P.Selector "patate" Nothing
+            ])
+          Nothing
+          (Just $ P.Term $ P.Factor $ P.Binary
+            L.Eq (P.Field "patate") P.Null
+          )
+        )
+        (evalStateT P.parse (fromFoldable
+          [ L.Keyword L.Select
+          , L.Word "patate"
+          , L.Keyword L.Where
+          , L.Word "patate"
+          , L.Binary L.Eq
+          , L.Keyword L.Null
+          , L.EOF
+          ]))
+
 
   --  ____       _
   -- |  _ \ _ __(_)_   _____ _ __
@@ -525,3 +561,259 @@ main = runTest do
           ]
           """)
           (compile "SELECT AVG(power) AS pwr WHERE age < 16 AND class = \"necromancer\"")
+
+
+    test "SELECT power WHERE parent = NULL" do
+      Assert.equal
+        (jsonParser
+          """
+          [
+            {
+              "$match": {
+                "$eq": ["$parent", null]
+              }
+            },
+            {
+              "$project": {
+                "power": "$power"
+              }
+            }
+          ]
+          """)
+          (compile "SELECT power WHERE parent = NULL")
+
+
+  --  ____                             _   _
+  -- / ___|  ___ _ __ ___   __ _ _ __ | |_(_) ___
+  -- \___ \ / _ \ '_ ` _ \ / _` | '_ \| __| |/ __|
+  --  ___) |  __/ | | | | | (_| | | | | |_| | (__
+  -- |____/ \___|_| |_| |_|\__,_|_| |_|\__|_|\___|
+  --
+  suite "semantic" do
+    test "invalid index (aggregation) - unexpected field" do
+      Assert.equal
+        (Left "unexisting field: 'patate'")
+        (do
+          schema <- S.fromString
+            """
+            {
+              "autruche": "number"
+            }
+            """
+          S.analyze schema (P.Group
+              (P.IdxField "patate")
+              (fromFoldable
+                [ P.Aggregation $ P.Selector "autruche" Nothing
+                ])
+              Nothing
+              Nothing
+            )
+          )
+
+    test "invalid condition (projection) - unexpected field" do
+      Assert.equal
+        (Left "unexisting field: 'patate'")
+        (do
+          schema <- S.fromString
+            """
+            {
+              "autruche": "number"
+            }
+            """
+          S.analyze schema (P.Select
+              (fromFoldable
+                [ P.Projection $ P.Selector "autruche" Nothing
+                ])
+              Nothing
+              (Just $ P.Term $ P.Factor $ P.Binary
+                L.Eq (P.Field "patate") (P.String "banana")
+              )
+            )
+          )
+
+    test "invalid condition (projection) - type mismatch Lt" do
+      Assert.equal
+        (Left "invalid combination of types for '<' operator")
+        (do
+          schema <- S.fromString
+            """
+            {
+              "autruche": "number"
+            }
+            """
+          S.analyze schema (P.Select
+              (fromFoldable
+                [ P.Projection $ P.Selector "autruche" Nothing
+                ])
+              Nothing
+              (Just $ P.Term $ P.Factor $ P.Binary
+                L.Lt (P.Field "autruche") (P.String "banana")
+              )
+            )
+          )
+
+    test "invalid condition (projection) - type mismatch Lt (2)" do
+      Assert.equal
+        (Left "invalid combination of types for '<' operator")
+        (do
+          schema <- S.fromString
+            """
+            {
+              "autruche": "string"
+            }
+            """
+          S.analyze schema (P.Select
+              (fromFoldable
+                [ P.Projection $ P.Selector "autruche" Nothing
+                ])
+              Nothing
+              (Just $ P.Term $ P.Factor $ P.Binary
+                L.Lt (P.Field "autruche") (P.Number $ fromInt 14)
+              )
+            )
+          )
+
+    test "invalid condition (projection) - type mismatch Eq" do
+      Assert.equal
+        (Left "invalid combination of types for '=' operator")
+        (do
+          schema <- S.fromString
+            """
+            {
+              "autruche": "string"
+            }
+            """
+          S.analyze schema (P.Select
+              (fromFoldable
+                [ P.Projection $ P.Selector "autruche" Nothing
+                ])
+              Nothing
+              (Just $ P.Term $ P.Factor $ P.Binary
+                L.Eq (P.Field "autruche") (P.Number $ fromInt 14)
+              )
+            )
+          )
+
+    test "invalid condition (Aggrrgation) - unexpected field (2)" do
+      Assert.equal
+        (Left "unexisting field: 'patate'")
+        (do
+          schema <- S.fromString
+            """
+            {
+              "autruche": "boolean"
+            }
+            """
+          S.analyze schema (P.Group
+              P.IdxNull
+              (fromFoldable
+                [ P.Aggregation $ P.Selector "autruche" Nothing
+                ])
+              Nothing
+              (Just $ P.Term $ P.Factor $ P.Binary
+                L.Neq (P.Field "patate") (P.Boolean true)
+              )
+            )
+          )
+
+
+    test "invalid condition (aggregation) - type mismatch Neq" do
+      Assert.equal
+        (Left "invalid combination of types for '!=' operator")
+        (do
+          schema <- S.fromString
+            """
+            {
+              "autruche": "string"
+            }
+            """
+          S.analyze schema (P.Group
+              (P.IdxField "autruche")
+              (fromFoldable
+                [ P.Aggregation $ P.Selector "autruche" Nothing
+                ])
+              Nothing
+              (Just $ P.Term $ P.Factor $ P.Binary
+                L.Neq (P.Field "autruche") (P.Number $ fromInt 14)
+              )
+            )
+          )
+
+    test "invalid selection - unexisting field" do
+      Assert.equal
+        (Left "unexisting field: 'patate'")
+        (do
+          schema <- S.fromString
+            """
+            {
+              "autruche": "string"
+            }
+            """
+          S.analyze schema (P.Group
+              (P.IdxField "autruche")
+              (fromFoldable
+                [ P.Aggregation $ P.Selector "patate" Nothing
+                ])
+              Nothing
+              Nothing
+            )
+          )
+
+    test "invalid selection - group with alias as _id" do
+      Assert.equal
+        (Left "reserved field's name: _id")
+        (do
+          schema <- S.fromString
+            """
+            {
+              "autruche": "string"
+            }
+            """
+          S.analyze schema (P.Group
+              P.IdxNull
+              (fromFoldable
+                [ P.Aggregation $ P.Selector "autruche" (Just "_id")
+                ])
+              Nothing
+              Nothing
+            )
+          )
+
+    test "invalid selection - group with alias as _id (2)" do
+      Assert.equal
+        (Left "reserved field's name: _id")
+        (do
+          schema <- S.fromString
+            """
+            {
+              "autruche": "string"
+            }
+            """
+          S.analyze schema (P.Group
+              P.IdxNull
+              (fromFoldable
+                [ P.Aggregation $ P.Selector "_id" Nothing
+                ])
+              Nothing
+              Nothing
+            )
+          )
+
+    test "invalid function call - (projection) avg on non-array" do
+      Assert.equal
+        (Left "invalid operation: function 'AVG' applied to non array<number>")
+        (do
+          schema <- S.fromString
+            """
+            {
+              "autruche": "string"
+            }
+            """
+          S.analyze schema (P.Select
+              (fromFoldable
+                [ P.Projection $ P.Function L.Avg "autruche" Nothing
+                ])
+              Nothing
+              Nothing
+            )
+          )
