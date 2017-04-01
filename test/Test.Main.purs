@@ -582,6 +582,40 @@ main = runTest do
           , L.EOF
           ]))
 
+    test "SELECT patate LIMIT 14 OFFSET 42" do
+      Assert.equal
+        (Right $ P.Select
+          (fromFoldable
+            [ P.Projection $ P.Selector "patate" Nothing
+            ])
+          Nothing
+          Nothing
+          Nil
+          (Just $ P.Limit 14)
+          (Just $ P.Offset 42)
+        )
+        (evalStateT P.parse (fromFoldable
+          [ L.Keyword L.Select
+          , L.Word "patate"
+          , L.Keyword L.Limit
+          , L.Number (fromInt 14)
+          , L.Keyword L.Offset
+          , L.Number (fromInt 42)
+          , L.EOF
+          ]))
+
+    test "SELECT patate LIMIT 14.42" do
+      Assert.equal
+        (Left "parsing error: limit must be an integer" :: Either String P.Statement)
+        (evalStateT P.parse (fromFoldable
+          [ L.Keyword L.Select
+          , L.Word "patate"
+          , L.Keyword L.Limit
+          , L.Number (fromNumber 14.42)
+          , L.EOF
+          ]))
+
+
   --  ____       _
   -- |  _ \ _ __(_)_   _____ _ __
   -- | | | | '__| \ \ / / _ \ '__|
@@ -798,6 +832,53 @@ main = runTest do
           ]
           """)
           (ingest "SELECT MAX(power) GROUP BY NULL ORDER BY age ASC")
+
+    test "SELECT power LIMIT 14 OFFSET 42" do
+      Assert.equal
+        (jsonParser
+          """
+          [
+            {
+              "$limit": 14
+            },
+            {
+              "$skip": 42
+            },
+            {
+              "$project": {
+                "power": "$power"
+              }
+            }
+          ]
+          """)
+          (ingest "SELECT power LIMIT 14 OFFSET 42")
+
+
+    test "SELECT MAX(power) GROUP BY NULL ORDER BY age LIMIT 14" do
+      Assert.equal
+        (jsonParser
+          """
+          [
+            {
+              "$sort": {
+                "age": 1
+              }
+            },
+            {
+              "$limit": 14
+            },
+            {
+              "$group": {
+                "_id": null,
+                "power": {
+                  "$max": "$power"
+                }
+              }
+            }
+          ]
+          """)
+          (ingest "SELECT MAX(power) GROUP BY NULL ORDER BY age LIMIT 14")
+
 
   --  ____                             _   _
   -- / ___|  ___ _ __ ___   __ _ _ __ | |_(_) ___
