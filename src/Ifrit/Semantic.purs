@@ -46,15 +46,17 @@ fromJson =
   decodeJson
 
 analyze :: Schema -> Parser.Statement -> Either String Schema
-analyze schema (Parser.Select projections statement condition) = do
+analyze schema (Parser.Select projections statement condition orders) = do
   schema' <- maybe (Right schema) (analyze schema) statement
   _ <- maybe (Right Null) (analyzeCondition schema') condition
+  _ <- traverse (analyzeOrder schema') orders
   schema'' <- List.foldM (analyzeProjection schema') StrMap.empty projections
   pure $ Object schema''
 
-analyze schema (Parser.Group index aggregations statement condition) = do
+analyze schema (Parser.Group index aggregations statement condition orders) = do
   schema' <- maybe (Right schema) (analyze schema) statement
   _ <- maybe (Right Null) (analyzeCondition schema') condition
+  _ <- traverse (analyzeOrder schema') orders
   schema'' <- List.foldM (analyzeAggregation schema') StrMap.empty aggregations
   case index of
     Parser.IdxNull ->
@@ -69,6 +71,27 @@ analyze schema (Parser.Group index aggregations statement condition) = do
               Left $ "unexisting field: '" <> key <> "'"
         _ ->
           Left "invalid operation: can't SELECT on non object"
+
+
+analyzeOrder :: Schema -> Parser.Order -> Either String Schema
+analyzeOrder schema order =
+  case order of
+    Parser.OrderAsc key ->
+      analyze' key
+    Parser.OrderDesc key ->
+      analyze' key
+  where
+    analyze' key =
+      case schema of
+        Object source ->
+          case StrMap.lookup key source of
+            Just _ ->
+              Right Null
+            Nothing ->
+              Left $ "unexisting field: '" <> key <> "'"
+        _ ->
+          Left "invalid operation: can't ORDER BY on non object"
+
 
 
 analyzeCondition :: Schema -> Parser.Condition -> Either String Schema

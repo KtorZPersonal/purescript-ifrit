@@ -9,7 +9,7 @@ import Control.Monad.State(evalStateT)
 import Data.Argonaut.Parser(jsonParser)
 import Data.Decimal(fromNumber, fromInt)
 import Data.Either(Either(..))
-import Data.List(fromFoldable)
+import Data.List(List(..), fromFoldable)
 import Data.Maybe(Maybe(..))
 import Test.Unit (suite, test)
 import Test.Unit.Assert as Assert
@@ -151,6 +151,7 @@ main = runTest do
             ])
           Nothing
           Nothing
+          Nil
         )
         (evalStateT P.parse (fromFoldable
           [ L.Keyword L.Select
@@ -166,6 +167,7 @@ main = runTest do
             ])
           Nothing
           Nothing
+          Nil
         )
         (evalStateT P.parse (fromFoldable
           [ L.Keyword L.Select
@@ -184,6 +186,7 @@ main = runTest do
             ])
           Nothing
           Nothing
+          Nil
         )
         (evalStateT P.parse (fromFoldable
           [ L.Keyword L.Select
@@ -205,6 +208,7 @@ main = runTest do
           (Just $ P.Term $ P.Factor $ P.Binary
             L.Gt (P.Field "autruche") (P.Number (fromInt 14)
           ))
+          Nil
         )
         (evalStateT P.parse (fromFoldable
           [ L.Keyword L.Select
@@ -228,8 +232,10 @@ main = runTest do
               ])
             Nothing
             Nothing
+            Nil
           )
           Nothing
+          Nil
         )
         (evalStateT P.parse (fromFoldable
           [ L.Keyword L.Select
@@ -251,6 +257,7 @@ main = runTest do
             ])
           Nothing
           Nothing
+          Nil
         )
         (evalStateT P.parse (fromFoldable
           [ L.Keyword L.Select
@@ -296,6 +303,7 @@ main = runTest do
           (Just $ P.Term $ P.Factor $ P.Binary
             L.Eq (P.Number (fromNumber 14.0)) (P.Number (fromNumber 42.0))
           )
+          Nil
         )
         (evalStateT P.parse (fromFoldable
           [ L.Keyword L.Select
@@ -320,6 +328,7 @@ main = runTest do
           (Just $ P.Term $ P.Factor $ P.Binary
             L.Neq (P.Field "autruche") (P.String "banana")
           )
+          Nil
         )
         (evalStateT P.parse (fromFoldable
           [ L.Keyword L.Select
@@ -387,6 +396,7 @@ main = runTest do
             ])
           Nothing
           Nothing
+          Nil
         )
         (evalStateT P.parse (fromFoldable
           [ L.Keyword L.Select
@@ -414,6 +424,7 @@ main = runTest do
           (Just $ P.Term $ P.Factor $ P.Binary
             L.Eq (P.Field "patate") P.Null
           )
+          Nil
         )
         (evalStateT P.parse (fromFoldable
           [ L.Keyword L.Select
@@ -607,6 +618,7 @@ main = runTest do
                 ])
               Nothing
               Nothing
+              Nil
             )
           )
 
@@ -628,6 +640,7 @@ main = runTest do
               (Just $ P.Term $ P.Factor $ P.Binary
                 L.Eq (P.Field "patate") (P.String "banana")
               )
+              Nil
             )
           )
 
@@ -649,6 +662,7 @@ main = runTest do
               (Just $ P.Term $ P.Factor $ P.Binary
                 L.Lt (P.Field "autruche") (P.String "banana")
               )
+              Nil
             )
           )
 
@@ -670,6 +684,7 @@ main = runTest do
               (Just $ P.Term $ P.Factor $ P.Binary
                 L.Lt (P.Field "autruche") (P.Number $ fromInt 14)
               )
+              Nil
             )
           )
 
@@ -691,6 +706,7 @@ main = runTest do
               (Just $ P.Term $ P.Factor $ P.Binary
                 L.Eq (P.Field "autruche") (P.Number $ fromInt 14)
               )
+              Nil
             )
           )
 
@@ -713,6 +729,7 @@ main = runTest do
               (Just $ P.Term $ P.Factor $ P.Binary
                 L.Neq (P.Field "patate") (P.Boolean true)
               )
+              Nil
             )
           )
 
@@ -736,6 +753,7 @@ main = runTest do
               (Just $ P.Term $ P.Factor $ P.Binary
                 L.Neq (P.Field "autruche") (P.Number $ fromInt 14)
               )
+              Nil
             )
           )
 
@@ -756,6 +774,7 @@ main = runTest do
                 ])
               Nothing
               Nothing
+              Nil
             )
           )
 
@@ -776,6 +795,7 @@ main = runTest do
                 ])
               Nothing
               Nothing
+              Nil
             )
           )
 
@@ -796,6 +816,7 @@ main = runTest do
                 ])
               Nothing
               Nothing
+              Nil
             )
           )
 
@@ -815,5 +836,6 @@ main = runTest do
                 ])
               Nothing
               Nothing
+              Nil
             )
           )

@@ -1,6 +1,5 @@
 module Ifrit.Driver.MongoDB
   ( class Ingest
-  , Pipeline
   , ingest
   , compile
   ) where
@@ -9,7 +8,8 @@ import Prelude
 
 import Control.Apply(lift2)
 import Control.Monad.State(evalStateT)
-import Data.Argonaut.Core(Json, JAssoc, jsonEmptyObject, jsonZero, jsonNull, toArray)
+import Data.Argonaut.Core(Json, JAssoc, jsonEmptyObject, jsonZero, jsonNull)
+import Data.Argonaut.Core as Argonaut
 import Data.Argonaut.Encode(encodeJson, extend, (:=), (~>))
 import Data.Array(concat)
 import Data.Decimal(toNumber)
@@ -28,12 +28,11 @@ import Ifrit.Lexer as Lexer
 
 
 -- CLASS & TYPES
-type Pipeline = Either String Json
+class Ingest pipeline stage where
+  ingest :: stage -> pipeline
 
-class Ingest stage where
-  ingest :: stage -> Pipeline
 
-compile :: String -> Pipeline
+compile :: String -> Either String Json
 compile query = do
   tokens <- evalStateT Lexer.tokenize { pos: 0, str: query }
   ast :: Parser.Statement <- evalStateT Parser.parse tokens
@@ -47,6 +46,11 @@ object = StrMap.fromFoldable >>> encodeJson
 
 singleton :: String -> Json -> Json
 singleton k x = object [Tuple k x]
+
+
+toArray :: forall a. a -> Array a
+toArray x =
+  [x]
 
 
 list :: Array Json -> Json
@@ -69,8 +73,60 @@ ingestBinary Lexer.Lt = "$lt"
 ingestBinary Lexer.Gt = "$gt"
 
 
-ingestProjection' :: Parser.Projection -> Either String JAssoc
-ingestProjection' (Parser.Projection selector) =
+fromArray :: Json -> Array Json
+fromArray json = unsafePartial $
+  case (Argonaut.toArray json) of
+    Just xs ->
+      xs
+
+
+maybeIngest :: forall a. Ingest (Either String Json) a
+  => (Json -> Array Json) -> Maybe a -> Either String (Array Json)
+maybeIngest fn =
+  maybe (pure []) (ingest >=> (\x -> pure $ fn x))
+
+
+instance ingestStatement :: Ingest (Either String Json) Parser.Statement where
+  ingest (Parser.Select projections statement condition orders) = do
+    projections' :: Array Json <- (singleton "$project" >>> toArray) <$> (ingest projections)
+    statement' :: Array Json <- maybeIngest fromArray statement
+    condition' :: Array Json <- maybeIngest (\x -> [singleton "$match" x]) condition
+    orders' :: Array Json <- if List.length orders == 0
+      then Right []
+      else (singleton "$sort" >>> toArray) <$> (ingest orders)
+    pure $ encodeJson $ concat
+      [ statement'
+      , condition'
+      , orders'
+      , projections'
+      ]
+
+  ingest (Parser.Group index aggregations statement condition orders) = do
+    aggregations' :: Json <- ingest aggregations
+    statement' :: Array Json <- maybeIngest fromArray statement
+    condition' :: Array Json <- maybeIngest (\x -> [singleton "$match" x]) condition
+    index' :: Json <- ingest index
+    orders' <- if List.length orders == 0
+      then Right []
+      else (singleton "$sort" >>> toArray) <$> (ingest orders)
+    pure $ encodeJson $ concat
+      [ statement'
+      , condition'
+      , orders'
+      , [ singleton "$group" (("_id" := index') ~> aggregations') ]
+      ]
+
+
+instance ingestList :: Ingest (Either String (Tuple String Json)) a => Ingest (Either String Json) (List a) where
+  ingest xs =
+      map encodeJson (foldr extendM init xs')
+    where
+      xs' = map ingest xs
+      init = Right jsonEmptyObject
+
+
+instance ingestProjection :: Ingest (Either String (Tuple String Json)) Parser.Projection where
+ingest (Parser.Projection selector) =
   case selector of
     Parser.Selector s as ->
       Right $ defaultAlias s as := ("$" <> s)
@@ -185,8 +241,8 @@ ingestProjection' (Parser.Projection selector) =
           Right $ defaultAlias s as := singleton "$sum" (encodeJson $ "$" <> s)
 
 
-ingestAggregation' :: Parser.Aggregation -> Either String JAssoc
-ingestAggregation' (Parser.Aggregation selector) =
+instance ingestAggregation :: Ingest (Either String (Tuple String Json)) Parser.Aggregation where
+ingest (Parser.Aggregation selector) =
   case selector of
     Parser.Selector s as ->
       Right $ defaultAlias s as := singleton "$push" (encodeJson $ "$" <> s)
@@ -207,61 +263,14 @@ ingestAggregation' (Parser.Aggregation selector) =
       Right $ defaultAlias s as := singleton "$sum" (encodeJson $ "$" <> s)
 
 
-unwrapStatement :: Json -> Array Json
-unwrapStatement json = unsafePartial $
-  case (toArray json) of
-    Just xs ->
-      xs
+instance ingestOrder :: Ingest (Either String (Tuple String Json)) Parser.Order where
+ingest (Parser.OrderAsc f) =
+  pure $ f := 1
+ingest (Parser.OrderDesc f) =
+  pure $ f := -1
 
 
-maybeIngest :: forall a. Ingest a
-  => (Json -> Array Json) -> Maybe a -> Either String (Array Json)
-maybeIngest fn =
-  maybe (pure []) (ingest >=> (\x -> pure $ fn x))
-
-
-instance ingestStatement :: Ingest Parser.Statement where
-  ingest (Parser.Select projections statement condition) = do
-    projections' <- ingest projections
-    statement' <- maybeIngest unwrapStatement statement
-    condition' <- maybeIngest (\x -> [singleton "$match" x]) condition
-    pure $ encodeJson $ concat
-      [ statement'
-      , condition'
-      , [ singleton "$project" projections' ]
-      ]
-
-  ingest (Parser.Group index aggregations statement condition) = do
-    aggregations' <- ingest aggregations
-    statement' <- maybeIngest unwrapStatement statement
-    condition' <- maybeIngest (\x -> [singleton "$match" x]) condition
-    index' <- ingest index
-    pure $ encodeJson $ concat
-      [ statement'
-      , condition'
-      , [ singleton "$group" (("_id" := index') ~> aggregations') ]
-      ]
-
-
-instance ingestProjection :: Ingest (List Parser.Projection) where
-  ingest xs =
-    let
-        projections = map ingestProjection' xs
-        init = Right jsonEmptyObject
-    in
-        map encodeJson (foldr extendM init projections)
-
-
-instance ingestAggregation :: Ingest (List Parser.Aggregation) where
-  ingest xs =
-    let
-        aggregations= map ingestAggregation' xs
-        init = Right jsonEmptyObject
-    in
-        map encodeJson (foldr extendM init aggregations)
-
-
-instance ingestCondition :: Ingest Parser.Condition where
+instance ingestCondition :: Ingest (Either String Json) Parser.Condition where
   ingest (Parser.Term t) = do
     t' <- ingest t
     pure t'
@@ -272,7 +281,7 @@ instance ingestCondition :: Ingest Parser.Condition where
     pure $ singleton "$or" (list [t1', t2'])
 
 
-instance ingestTerm :: Ingest Parser.Term where
+instance ingestTerm :: Ingest (Either String Json) Parser.Term where
   ingest (Parser.Factor f) = do
     f' <- ingest f
     pure f'
@@ -283,7 +292,7 @@ instance ingestTerm :: Ingest Parser.Term where
     pure $ singleton "$and" (list [f1', f2'])
 
 
-instance ingestFactor :: Ingest Parser.Factor where
+instance ingestFactor :: Ingest (Either String Json) Parser.Factor where
   ingest (Parser.Operand o) = do
     o' <- ingest o
     pure o'
@@ -295,7 +304,7 @@ instance ingestFactor :: Ingest Parser.Factor where
     pure $ singleton op' (list [o1', o2'])
 
 
-instance ingestOperand :: Ingest Parser.Operand where
+instance ingestOperand :: Ingest (Either String Json) Parser.Operand where
   ingest (Parser.String s) =
     pure $ encodeJson s
   ingest (Parser.Boolean b) =
@@ -310,7 +319,7 @@ instance ingestOperand :: Ingest Parser.Operand where
     ingest c
 
 
-instance ingestIndex :: Ingest Parser.Index where
+instance ingestIndex :: Ingest (Either String Json) Parser.Index where
   ingest (Parser.IdxField s) =
     pure $ encodeJson $ "$" <> s
   ingest (Parser.IdxNull) =

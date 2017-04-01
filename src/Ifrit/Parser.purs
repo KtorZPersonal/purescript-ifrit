@@ -6,6 +6,7 @@ module Ifrit.Parser
   , Factor(..)
   , Index(..)
   , Operand(..)
+  , Order(..)
   , Projection(..)
   , Selector(..)
   , Statement(..)
@@ -18,7 +19,7 @@ import Prelude
 import Control.Monad.State(StateT, get, lift, put)
 import Data.Decimal(Decimal, toString)
 import Data.Either(Either(..))
-import Data.List(List(..), (:), intercalate)
+import Data.List(List(..), (:), intercalate, length)
 import Data.Maybe(Maybe(..), maybe)
 
 import Ifrit.Lexer as Lexer
@@ -32,8 +33,8 @@ class Parse expr where
 
 
 data Statement
-  = Select (List Projection) (Maybe Statement) (Maybe Condition)
-  | Group Index (List Aggregation) (Maybe Statement) (Maybe Condition)
+  = Select (List Projection) (Maybe Statement) (Maybe Condition) (List Order)
+  | Group Index (List Aggregation) (Maybe Statement) (Maybe Condition) (List Order)
 
 derive instance eqStatement :: Eq Statement
 
@@ -87,6 +88,13 @@ data Operand
   | Condition Condition
 
 derive instance eqOperand :: Eq Operand
+
+
+data Order
+  = OrderAsc String
+  | OrderDesc String
+
+derive instance eqOrder :: Eq Order
 
 
 data Index
@@ -212,6 +220,40 @@ instance parseCondition :: Parse Condition where
         pure $ Term left
 
 
+instance parseOrder :: Parse Order where
+  parse = do
+    tokens <- get
+    case tokens of
+      (Lexer.Word s : Lexer.Keyword Lexer.Asc : q) -> do
+        put q
+        pure $ OrderAsc s
+
+      (Lexer.Word s : Lexer.Keyword Lexer.Desc : q) -> do
+        put q
+        pure $ OrderDesc s
+
+      (Lexer.Word s : q) -> do
+        put q
+        pure $ OrderAsc s
+
+      (Lexer.Parenthesis Lexer.Open : q) -> do
+        put q
+        order :: Order <- parse
+        tokens' <- get
+        case tokens' of
+          (Lexer.Parenthesis Lexer.Close : q') -> do
+            put q'
+            pure $ order
+          _ ->
+            lift $ Left "parsing error: unbalanced parenthesis expression"
+
+      (h : _) ->
+        lift $ Left $ "parsing error: unexpected token: " <> show h
+
+      Nil ->
+        lift $ Left "parsing error: incomplete expression"
+
+
 instance parseSelector :: Parse Selector where
   parse = do
     tokens <- get
@@ -263,17 +305,17 @@ instance parseSelector :: Parse Selector where
         lift $ Left  "parsing error: empty expression"
 
 
-instance parseListSelector :: Parse (List Selector) where
+instance parseListToken :: Parse a => Parse (List a) where
   parse = do
-    selector :: Selector <- parse
+    order :: a <- parse
     tokens <- get
     case tokens of
       (Lexer.Comma : q) -> do
         put q
-        selectors :: List Selector <- parse
-        pure $ selector : selectors
+        orders :: List a <- parse
+        pure $ order : orders
       _ -> do
-        pure $ selector : Nil
+        pure $ order : Nil
 
 
 maybeParse :: forall a. Parse a => Lexer.Keyword -> Parser (Maybe a)
@@ -288,13 +330,16 @@ maybeParse key = do
       pure $ Nothing
 
 
-combine :: List Selector -> Maybe Statement -> Maybe Condition -> Maybe Index -> Statement
-combine selectors statement condition index =
-  case index of
-    Nothing ->
-      Select (map Projection selectors) statement condition
-    Just index' ->
-      Group index' (map Aggregation selectors) statement condition
+combine :: List Selector -> Maybe Statement -> Maybe Condition -> Maybe Index -> Maybe (List Order) -> Statement
+combine selectors statement condition index orders =
+  let
+      orders' = maybe Nil (\xs -> xs) orders
+  in
+      case index of
+        Nothing ->
+          Select (map Projection selectors) statement condition orders'
+        Just index' ->
+          Group index' (map Aggregation selectors) statement condition orders'
 
 
 instance parseStatement :: Parse Statement where
@@ -310,13 +355,14 @@ instance parseStatement :: Parse Statement where
         statement :: Maybe Statement <- maybeParse Lexer.From
         condition :: Maybe Condition <- maybeParse Lexer.Where
         index :: Maybe Index <- maybeParse Lexer.GroupBy
+        orders :: Maybe (List Order) <- maybeParse Lexer.OrderBy
         tokens' <- get
         case tokens' of
           (Lexer.EOF : Nil) -> do
-            pure $ combine selectors statement condition index
+            pure $ combine selectors statement condition index orders
           (Lexer.Parenthesis Lexer.Close : q') -> do
             put q'
-            pure $ combine selectors statement condition index
+            pure $ combine selectors statement condition index orders
           _ ->
           lift $ Left "parsing error: invalid end of input"
 
@@ -332,22 +378,30 @@ instance parseStatement :: Parse Statement where
 
 -- INSTANCE SHOW
 instance showStatement :: Show Statement where
-  show (Select projections statement condition) =
+  show (Select projections statement condition orders) =
     let
         projections' = "SELECT " <> (intercalate ", " (map show projections))
         statement' = maybe "" (\x -> " FROM (" <> (show x) <> ")") statement
         condition' = maybe "" (\x -> " WHERE (" <> (show x) <> ")") condition
+        orders' =
+          if length orders == 0
+            then ""
+            else " ORDER BY " <> (intercalate ", " (map show orders))
     in
-        projections' <> statement' <> condition'
+        projections' <> statement' <> condition' <> orders'
 
-  show (Group index aggregations statement condition) =
+  show (Group index aggregations statement condition orders) =
     let
         aggregations' = "SELECT " <> (intercalate ", " (map show aggregations))
         statement' = maybe "" (\x -> " FROM (" <> (show x) <> ")") statement
         condition' = maybe "" (\x -> " WHERE (" <> (show x) <> ")") condition
         index' = " GROUP BY " <> (show index)
+        orders' =
+          if length orders == 0
+            then ""
+            else " ORDER BY " <> (intercalate ", " (map show orders))
     in
-        aggregations' <> statement' <> condition' <> index'
+        aggregations' <> statement' <> condition' <> index' <> orders'
 
 
 instance showProjection :: Show Projection where
@@ -405,6 +459,13 @@ instance showOperand :: Show Operand where
     "NULL"
   show (Condition x) =
     "(" <> show x <> ")"
+
+
+instance showOrder :: Show Order where
+  show (OrderAsc x) =
+    (show x) <> " ASC"
+  show (OrderDesc x) =
+    (show x) <> " DESC"
 
 
 instance showIndex :: Show Index where
