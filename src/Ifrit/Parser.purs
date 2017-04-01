@@ -364,7 +364,7 @@ instance parseStatement :: Parse Statement where
             put q'
             pure $ combine selectors statement condition index orders
           _ ->
-          lift $ Left "parsing error: invalid end of input"
+            lift $ Left "parsing error: invalid end of input"
 
       (Lexer.Parenthesis Lexer.Open : q) -> do
         put q

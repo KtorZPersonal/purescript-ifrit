@@ -114,7 +114,7 @@ keyword str = unsafePartial $
     "NULL" -> Null
     "OFFSET" -> Offset
     "OR" -> Or
-    "ORDER BY" -> OrderBy
+    "ORDERBY" -> OrderBy
     "SELECT" -> Select
     "WHERE" -> Where
 
@@ -156,7 +156,8 @@ infixr 7 parse as </*/>
 nextKeyword :: Parser Token
 nextKeyword =
   keyword >>> Keyword </*/>
-    "(AND|AS|ASC|DESC|DISTINCT|FROM|GROUP BY|LIMIT|NULL|OFFSET|OR|ORDER BY|SELECT|WHERE)"
+    -- NOTE Careful about the order here, OR is included in ORDER BY, AS in ASC etc...
+    "(DISTINCT|GROUP BY|ORDER BY|OFFSET|SELECT|WHERE|LIMIT|NULL|FROM|WHERE|AND|ASC|AS|OR|DESC)"
 
 
 nextFunction :: Parser Token

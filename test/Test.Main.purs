@@ -6,20 +6,28 @@ import Control.Monad.Aff.AVar(AVAR)
 import Control.Monad.Eff(Eff)
 import Control.Monad.Eff.Console(CONSOLE)
 import Control.Monad.State(evalStateT)
+import Data.Argonaut.Core(Json)
 import Data.Argonaut.Parser(jsonParser)
 import Data.Decimal(fromNumber, fromInt)
 import Data.Either(Either(..))
-import Data.List(List(..), fromFoldable)
+import Data.List(List(..), fromFoldable, (:))
 import Data.Maybe(Maybe(..))
 import Test.Unit (suite, test)
 import Test.Unit.Assert as Assert
 import Test.Unit.Console(TESTOUTPUT)
 import Test.Unit.Main (runTest)
 
-import Ifrit.Driver.MongoDB(compile)
+import Ifrit.Driver.MongoDB as M
 import Ifrit.Lexer as L
 import Ifrit.Parser as P
 import Ifrit.Semantic as S
+
+
+ingest :: String -> Either String Json
+ingest query = do
+  tokens <- evalStateT L.tokenize { pos: 0, str: query }
+  ast :: P.Statement <- evalStateT P.parse tokens
+  M.ingest ast
 
 
 main :: Eff (avar :: AVAR, console :: CONSOLE, testOutput :: TESTOUTPUT) Unit
@@ -135,6 +143,19 @@ main = runTest do
           , str: "WHERE patate = NULL"
           })
 
+    test "[0] SELECT patate ORDER BY autruche" do
+      Assert.equal
+        (Right $ fromFoldable
+          [ L.Keyword L.Select
+          , L.Word "patate"
+          , L.Keyword L.OrderBy
+          , L.Word "autruche"
+          , L.EOF
+          ])
+        (evalStateT L.tokenize
+          { pos: 0
+          , str: "SELECT patate ORDER BY autruche"
+          })
 
   --  ____
   -- |  _ \ __ _ _ __ ___  ___ _ __
@@ -436,6 +457,75 @@ main = runTest do
           , L.EOF
           ]))
 
+    test "SELECT patate ORDER BY autruche" do
+      Assert.equal
+        (Right $ P.Select
+          (fromFoldable
+            [ P.Projection $ P.Selector "patate" Nothing
+            ])
+          Nothing
+          Nothing
+          (P.OrderAsc "autruche" : Nil)
+        )
+        (evalStateT P.parse (fromFoldable
+          [ L.Keyword L.Select
+          , L.Word "patate"
+          , L.Keyword L.OrderBy
+          , L.Word "autruche"
+          , L.EOF
+          ]))
+
+    test "SELECT patate ORDER BY autruche ASC" do
+      Assert.equal
+        (Right $ P.Select
+          (fromFoldable
+            [ P.Projection $ P.Selector "patate" Nothing
+            ])
+          Nothing
+          Nothing
+          (P.OrderAsc "autruche" : Nil)
+        )
+        (evalStateT P.parse (fromFoldable
+          [ L.Keyword L.Select
+          , L.Word "patate"
+          , L.Keyword L.OrderBy
+          , L.Word "autruche"
+          , L.Keyword L.Asc
+          , L.EOF
+          ]))
+
+    test "SELECT patate ORDER BY autruche ASC, patate DESC" do
+      Assert.equal
+        (Right $ P.Select
+          (fromFoldable
+            [ P.Projection $ P.Selector "patate" Nothing
+            ])
+          Nothing
+          Nothing
+          (P.OrderAsc "autruche" : P.OrderDesc "patate" : Nil)
+        )
+        (evalStateT P.parse (fromFoldable
+          [ L.Keyword L.Select
+          , L.Word "patate"
+          , L.Keyword L.OrderBy
+          , L.Word "autruche"
+          , L.Keyword L.Asc
+          , L.Comma
+          , L.Word "patate"
+          , L.Keyword L.Desc
+          , L.EOF
+          ]))
+
+    test "SELECT patate ORDER BY NULL" do
+      Assert.equal
+        (Left "parsing error: unexpected token: NULL" :: Either String P.Statement)
+        (evalStateT P.parse (fromFoldable
+          [ L.Keyword L.Select
+          , L.Word "patate"
+          , L.Keyword L.OrderBy
+          , L.Keyword L.Null
+          , L.EOF
+          ]))
 
   --  ____       _
   -- |  _ \ _ __(_)_   _____ _ __
@@ -459,7 +549,7 @@ main = runTest do
             }
           ]
           """)
-        (compile "SELECT SUM(lvl) GROUP BY age")
+        (ingest "SELECT SUM(lvl) GROUP BY age")
 
     test "SELECT MAX(spells.power) AS max_power" do
       Assert.equal
@@ -490,7 +580,7 @@ main = runTest do
             }
           ]
           """)
-          (compile "SELECT MAX(spells.power) AS max_power")
+          (ingest "SELECT MAX(spells.power) AS max_power")
 
     test "SELECT AVG(power) FROM (SELECT class, AVG(spells.power) AS power) GROUP BY class" do
       Assert.equal
@@ -528,7 +618,7 @@ main = runTest do
             }
           ]
           """)
-          (compile "SELECT AVG(power) FROM (SELECT class, AVG(spells.power) AS power) GROUP BY class")
+          (ingest "SELECT AVG(power) FROM (SELECT class, AVG(spells.power) AS power) GROUP BY class")
 
     test "SELECT name WHERE age < 16" do
       Assert.equal
@@ -547,7 +637,7 @@ main = runTest do
             }
           ]
           """)
-          (compile "SELECT name WHERE age < 16")
+          (ingest "SELECT name WHERE age < 16")
 
     test "SELECT AVG(power) AS pwr WHERE age < 16 AND class = \"necromancer\"" do
       Assert.equal
@@ -571,7 +661,7 @@ main = runTest do
             }
           ]
           """)
-          (compile "SELECT AVG(power) AS pwr WHERE age < 16 AND class = \"necromancer\"")
+          (ingest "SELECT AVG(power) AS pwr WHERE age < 16 AND class = \"necromancer\"")
 
 
     test "SELECT power WHERE parent = NULL" do
@@ -591,8 +681,68 @@ main = runTest do
             }
           ]
           """)
-          (compile "SELECT power WHERE parent = NULL")
+          (ingest "SELECT power WHERE parent = NULL")
 
+    test "SELECT power ORDER BY name" do
+      Assert.equal
+        (jsonParser
+          """
+          [
+            {
+              "$sort": {
+                "name": 1
+              }
+            },
+            {
+              "$project": {
+                "power": "$power"
+              }
+            }
+          ]
+          """)
+          (ingest "SELECT power ORDER BY name")
+
+    test "SELECT power ORDER BY name DESC, age" do
+      Assert.equal
+        (jsonParser
+          """
+          [
+            {
+              "$sort": {
+                "name": -1,
+                "age": 1
+              }
+            },
+            {
+              "$project": {
+                "power": "$power"
+              }
+            }
+          ]
+          """)
+          (ingest "SELECT power ORDER BY name DESC, age")
+
+    test "SELECT MAX(power) GROUP BY NULL ORDER BY age ASC" do
+      Assert.equal
+        (jsonParser
+          """
+          [
+            {
+              "$sort": {
+                "age": 1
+              }
+            },
+            {
+              "$group": {
+                "_id": null,
+                "power": {
+                  "$max": "$power"
+                }
+              }
+            }
+          ]
+          """)
+          (ingest "SELECT MAX(power) GROUP BY NULL ORDER BY age ASC")
 
   --  ____                             _   _
   -- / ___|  ___ _ __ ___   __ _ _ __ | |_(_) ___
@@ -837,5 +987,25 @@ main = runTest do
               Nothing
               Nothing
               Nil
+            )
+          )
+
+    test "invalid order by - unexpected field" do
+      Assert.equal
+        (Left "unexisting field: 'patate'")
+        (do
+          schema <- S.fromString
+            """
+            {
+              "autruche": "number"
+            }
+            """
+          S.analyze schema (P.Select
+              (fromFoldable
+                [ P.Projection $ P.Selector "autruche" Nothing
+                ])
+              Nothing
+              Nothing
+              (P.OrderAsc "patate" : Nil)
             )
           )

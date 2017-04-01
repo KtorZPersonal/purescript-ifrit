@@ -1,13 +1,11 @@
 module Ifrit.Driver.MongoDB
   ( class Ingest
   , ingest
-  , compile
   ) where
 
 import Prelude
 
 import Control.Apply(lift2)
-import Control.Monad.State(evalStateT)
 import Data.Argonaut.Core(Json, JAssoc, jsonEmptyObject, jsonZero, jsonNull)
 import Data.Argonaut.Core as Argonaut
 import Data.Argonaut.Encode(encodeJson, extend, (:=), (~>))
@@ -30,13 +28,6 @@ import Ifrit.Lexer as Lexer
 -- CLASS & TYPES
 class Ingest pipeline stage where
   ingest :: stage -> pipeline
-
-
-compile :: String -> Either String Json
-compile query = do
-  tokens <- evalStateT Lexer.tokenize { pos: 0, str: query }
-  ast :: Parser.Statement <- evalStateT Parser.parse tokens
-  ingest ast
 
 
 -- UTILITIES
