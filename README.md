@@ -108,10 +108,9 @@ SELECT COUNT(_id) AS nb_txs WHERE amount > 1000 GROUP BY account.currency
 [
     {
         "$match": {
-            "$gt": [
-                "$amount",
-                1000
-            ]
+            "amount": {
+                "$gt": 1000
+            }
         }
     },
     {
@@ -161,7 +160,7 @@ and objects can be declared by nesting primitive types in JSON arrays `[]` or ob
 type        | support
 --------    | --------
 projection  | `SELECT, AS, FROM`
-grouping    | `GROUP BY
+grouping    | `GROUP BY`
 filtering   | `WHERE, LIMIT, OFFSET`
 sorting     | `ORDER BY, DESC, ASC`
 operators   | `AND, OR, NOT, =, !=, >, <`
@@ -177,21 +176,21 @@ SUM      | number
 > ⚠ Ifrit relies on a strict order of clauses ⚠
 >  
 > - (1) `SELECT`
-> - (3) `FROM`
-> - (4) `WHERE`
-> - (5) `GROUP BY`
-> - (6) `ORDER BY`
-> - (7) `(ASC | DESC)`
-> - (8) `LIMIT`
-> - (9) `OFFSET`
+> - (2) `FROM`
+> - (3) `WHERE`
+> - (4) `GROUP BY`
+> - (5) `ORDER BY`
+> - (6) `(ASC | DESC)`
+> - (7) `LIMIT`
+> - (8) `OFFSET`
 
 #### Differences with SQL
 
 - Ifrit is case-sensitive, e.g. `AS != as`, `NULL != null`, etc.
 
-- Ifrit doesn't support the `*` selector
+- Ifrit doesn't support the `*` selector.
 
-- `ORDER BY` can't be use with `NULL`
+- `ORDER BY` can't be use with `NULL`.
 
 - Ifrit can't `JOIN` from other collections, the `FROM` can only be used to defined derived
   tables, i.e, define a multi-level pipeline of map / reduce operations.
@@ -200,7 +199,7 @@ SUM      | number
   array of numbers when apply without. Ifrit also supports nested notation for array of objects
   (e.g.  `SELECT AVG(items.price)`).
 
-- When no aliase is specified, the argument is used to name the property in the output schema. 
+- When no alias is specified, the property of the output schema is named after the selector.
 
 
 
