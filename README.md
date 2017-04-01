@@ -100,7 +100,7 @@ the only target driver available.
 
 **input**
 ```sql
-SELECT COUNT(*) AS nb_txs WHERE amount > 1000 GROUP BY account.currency
+SELECT COUNT(_id) AS nb_txs WHERE amount > 1000 GROUP BY account.currency
 ```
 
 **output**
@@ -190,6 +190,8 @@ SUM      | number
 
 - Ifrit is case-sensitive, e.g. `AS != as`, `NULL != null`, etc.
 
+- Ifrit doesn't support the `*` selector
+
 - `ORDER BY` can't be use with `NULL`
 
 - Ifrit can't `JOIN` from other collections, the `FROM` can only be used to defined derived
@@ -200,7 +202,6 @@ SUM      | number
   (e.g.  `SELECT AVG(items.price)`).
 
 - When no aliase is specified, the argument is used to name the property in the output schema. 
-  Exception for `COUNT(*)` where the property is named `count`.
 
 
 

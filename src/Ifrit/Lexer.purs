@@ -80,7 +80,6 @@ derive instance eqUnary :: Eq Unary
 
 data Token
   = Comma
-  | Star
   | Function Funktion
   | Parenthesis Parenthesis
   | Keyword Keyword
@@ -178,11 +177,6 @@ nextBinary =
   <|> Binary Gt </$/> ">"
 
 
-nextStar :: Parser Token
-nextStar =
-  Star </$/> "*"
-
-
 nextBoolean :: Parser Token
 nextBoolean =
   let
@@ -234,7 +228,6 @@ parser =
   <|> nextFunction
   <|> nextUnary
   <|> nextBinary
-  <|> nextStar
   <|> nextBoolean
   <|> nextNumber
   <|> nextString
@@ -266,8 +259,6 @@ instance showToken :: (Show Number, Show Keyword) => Show Token where
     show k
   show (Function f) =
     show f
-  show Star =
-    "*"
   show (Word w) =
     w
   show (String s) =

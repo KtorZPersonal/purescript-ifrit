@@ -146,23 +146,19 @@ ingest (Parser.Projection selector) =
           Right $ defaultAlias s as := singleton "$avg" (encodeJson $ "$" <> s)
 
     Parser.Function Lexer.Count s as ->
-      case s of
-        "*" ->
-          Right $ defaultAlias "count" as := singleton "$sum" (encodeJson 1)
-        _ ->
-          let
-              alias = defaultAlias s as
-              count = list
-                [ encodeJson "$$value"
-                , encodeJson 1
-                ]
-              reduce = object
-                [ "input" := (encodeJson $ "$" <> s)
-                , "initialValue" := jsonZero
-                , "in" := (singleton "$add" count)
-                ]
-          in
-              Right $ alias := singleton "$reduce" reduce
+      let
+          alias = defaultAlias s as
+          count = list
+            [ encodeJson "$$value"
+            , encodeJson 1
+            ]
+          reduce = object
+            [ "input" := (encodeJson $ "$" <> s)
+            , "initialValue" := jsonZero
+            , "in" := (singleton "$add" count)
+            ]
+      in
+          Right $ alias := singleton "$reduce" reduce
 
     Parser.Function Lexer.Max s as ->
       case split (Pattern ".") s of
