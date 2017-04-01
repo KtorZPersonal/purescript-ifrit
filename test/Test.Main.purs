@@ -916,7 +916,6 @@ main = runTest do
           """)
           (ingest "SELECT power LIMIT 14 OFFSET 42")
 
-
     test "SELECT MAX(power) GROUP BY NULL ORDER BY age LIMIT 14" do
       Assert.equal
         (jsonParser
@@ -942,6 +941,28 @@ main = runTest do
           """)
           (ingest "SELECT MAX(power) GROUP BY NULL ORDER BY age LIMIT 14")
 
+    test "SELECT patate WHERE NOT(patate > 12 AND patate = 14)" do
+      Assert.equal
+        (jsonParser
+          """
+          [
+            {
+              "$match": {
+                "$or": [
+                  { "patate": { "$lte": 12 } },
+                  { "patate": { "$neq": 14 } }
+                ]
+              }
+            },
+            {
+              "$project": {
+                "patate": "$patate"
+              }
+            }
+          ]
+          """)
+          (ingest "SELECT patate WHERE NOT(patate > 12 AND patate = 14)")
+
 
   --  ____                             _   _
   -- / ___|  ___ _ __ ___   __ _ _ __ | |_(_) ___
@@ -952,7 +973,7 @@ main = runTest do
   suite "semantic" do
     test "invalid index (aggregation) - unexpected field" do
       Assert.equal
-        (Left "unexisting field: 'patate'")
+        (Left "unexisting field 'patate' in GROUP BY expression")
         (do
           schema <- S.fromString
             """
@@ -975,7 +996,7 @@ main = runTest do
 
     test "invalid condition (projection) - unexpected field" do
       Assert.equal
-        (Left "unexisting field: 'patate'")
+        (Left "unexisting field 'patate' in WHERE expression")
         (do
           schema <- S.fromString
             """
@@ -999,7 +1020,7 @@ main = runTest do
 
     test "invalid condition (projection) - type mismatch Lt" do
       Assert.equal
-        (Left "invalid combination of types for '<' operator")
+        (Left "incompatible types \"number\", \"string\" with binary operator <")
         (do
           schema <- S.fromString
             """
@@ -1023,7 +1044,7 @@ main = runTest do
 
     test "invalid condition (projection) - type mismatch Lt (2)" do
       Assert.equal
-        (Left "invalid combination of types for '<' operator")
+        (Left "incompatible types \"string\", \"number\" with binary operator <")
         (do
           schema <- S.fromString
             """
@@ -1047,7 +1068,7 @@ main = runTest do
 
     test "invalid condition (projection) - type mismatch Eq" do
       Assert.equal
-        (Left "invalid combination of types for '=' operator")
+        (Left "incompatible types \"string\", \"number\" with binary operator =")
         (do
           schema <- S.fromString
             """
@@ -1071,7 +1092,7 @@ main = runTest do
 
     test "invalid condition (Aggrrgation) - unexpected field (2)" do
       Assert.equal
-        (Left "unexisting field: 'patate'")
+        (Left "unexisting field 'patate' in WHERE expression")
         (do
           schema <- S.fromString
             """
@@ -1097,7 +1118,7 @@ main = runTest do
 
     test "invalid condition (aggregation) - type mismatch Neq" do
       Assert.equal
-        (Left "invalid combination of types for '!=' operator")
+        (Left "incompatible types \"string\", \"number\" with binary operator !=")
         (do
           schema <- S.fromString
             """
@@ -1122,7 +1143,7 @@ main = runTest do
 
     test "invalid selection - unexisting field" do
       Assert.equal
-        (Left "unexisting field: 'patate'")
+        (Left "unexisting field 'patate' in SELECT expression")
         (do
           schema <- S.fromString
             """
@@ -1145,7 +1166,7 @@ main = runTest do
 
     test "invalid selection - group with alias as _id" do
       Assert.equal
-        (Left "reserved field's name: _id")
+        (Left "reserved field's name '_id'")
         (do
           schema <- S.fromString
             """
@@ -1168,7 +1189,7 @@ main = runTest do
 
     test "invalid selection - group with alias as _id (2)" do
       Assert.equal
-        (Left "reserved field's name: _id")
+        (Left "reserved field's name '_id'")
         (do
           schema <- S.fromString
             """
@@ -1191,7 +1212,7 @@ main = runTest do
 
     test "invalid function call - (projection) avg on non-array" do
       Assert.equal
-        (Left "invalid operation: function 'AVG' applied to non array<number>")
+        (Left "incompatible type \"string\" with function AVG")
         (do
           schema <- S.fromString
             """
@@ -1213,7 +1234,7 @@ main = runTest do
 
     test "invalid order by - unexpected field" do
       Assert.equal
-        (Left "unexisting field: 'patate'")
+        (Left "unexisting field 'patate' in ORDER BY expression")
         (do
           schema <- S.fromString
             """

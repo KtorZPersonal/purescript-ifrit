@@ -26,6 +26,7 @@ import Ifrit.Parser as Parser
 import Ifrit.Lexer as Lexer
 
 
+-- TYPES AND CLASSES
 data Schema
   = Object (StrMap Schema)
   | Array Schema
@@ -37,6 +38,37 @@ data Schema
 derive instance eqSchema :: Eq Schema
 
 
+-- ERRORS
+data Error
+  = ErrIncompatibleSchema Schema
+  | ErrUnexistingField Lexer.Keyword String
+  | ErrIncompatibleUnaryType Lexer.Unary Schema
+  | ErrIncompatibleBinaryTypes Lexer.Binary Schema Schema
+  | ErrIncompatibleFnType Lexer.Funktion Schema
+  | ErrInvalidFieldName String
+  | ErrReservedFieldName String
+
+instance showError :: Show Error where
+  show err =
+    case err of
+      ErrUnexistingField stage field ->
+        "unexisting field '" <> field <> "' in " <> show stage <> " expression"
+      ErrIncompatibleSchema schema ->
+        "incompatible object schema for operation: " <> show schema
+      ErrIncompatibleUnaryType op type_ ->
+        "incompatible type " <> show type_ <> " with unary operator " <> show op
+      ErrIncompatibleBinaryTypes op type1 type2 ->
+        "incompatible types " <> show type1 <> ", " <> show type2 <>
+          " with binary operator " <> show op
+      ErrIncompatibleFnType fn type_ ->
+        "incompatible type " <> show type_ <> " with function " <> show fn
+      ErrInvalidFieldName field ->
+        "invalid field's name '" <> field <> "'"
+      ErrReservedFieldName field ->
+        "reserved field's name '" <> field <> "'"
+
+
+-- UTILS
 fromString :: String -> Either String Schema
 fromString =
   jsonParser >=> fromJson
@@ -46,6 +78,7 @@ fromJson =
   decodeJson
 
 
+-- ANALYZERS
 analyze :: Schema -> Parser.Statement -> Either String Schema
 analyze schema (Parser.Select projections statement condition orders limit offset) = do
   schema' <- maybe (Right schema) (analyze schema) statement
@@ -69,9 +102,9 @@ analyze schema (Parser.Group index aggregations statement condition orders limit
             Just schemaIndex ->
               pure $ Object $ StrMap.insert "_id" schemaIndex schema''
             Nothing ->
-              Left $ "unexisting field: '" <> key <> "'"
+            Left $ show $ ErrUnexistingField Lexer.GroupBy key
         _ ->
-          Left "invalid operation: can't SELECT on non object"
+          Left $ show $ ErrIncompatibleSchema schema'
 
 
 analyzeOrder :: Schema -> Parser.Order -> Either String Schema
@@ -89,9 +122,9 @@ analyzeOrder schema order =
             Just _ ->
               Right Null
             Nothing ->
-              Left $ "unexisting field: '" <> key <> "'"
+              Left $ show $ ErrUnexistingField Lexer.OrderBy key
         _ ->
-          Left "invalid operation: can't ORDER BY on non object"
+          Left $ show $ ErrIncompatibleSchema schema
 
 
 analyzeCondition :: Schema -> Parser.Condition -> Either String Schema
@@ -101,7 +134,7 @@ analyzeCondition schema condition =
       analyzeTerm schema t
 
     Parser.Or t1 t2 ->
-      traverse (analyzeTerm schema) [t1, t2] >>= const (Right Null)
+      traverse (analyzeTerm schema) [t1, t2] >>= const (Right Boolean)
 
 
 analyzeTerm :: Schema -> Parser.Term -> Either String Schema
@@ -111,7 +144,7 @@ analyzeTerm schema term =
       analyzeFactor schema f
 
     Parser.And f1 f2 ->
-      traverse (analyzeFactor schema) [f1, f2] >>= const (Right Null)
+      traverse (analyzeFactor schema) [f1, f2] >>= const (Right Boolean)
 
 
 analyzeFactor :: Schema -> Parser.Factor -> Either String Schema
@@ -129,7 +162,7 @@ analyzeFactor schema factor =
         Boolean ->
           Right Boolean
         _ ->
-          Left $ "invalid combination of types for '" <> show op <> "' operator"
+          Left $ show $ ErrIncompatibleUnaryType op s
 
     Parser.Binary op o1 o2 -> do
       Pair s1 s2 <- traverse (analyzeOperand schema) (Pair o1 o2)
@@ -139,9 +172,9 @@ analyzeFactor schema factor =
         { op: Lexer.Lt, s1: Number, s2: Number } ->
           Right Boolean
         { op: Lexer.Gt, s1: _, s2: _ } ->
-          Left $ "invalid combination of types for '" <> show op <> "' operator"
+          Left $ show $ ErrIncompatibleBinaryTypes op s1 s2
         { op: Lexer.Lt, s1: _, s2: _ } ->
-          Left $ "invalid combination of types for '" <> show op <> "' operator"
+          Left $ show $ ErrIncompatibleBinaryTypes op s1 s2
         { op: _, s1: Number, s2: Number } ->
           Right Boolean
         { op: _, s1: Boolean, s2: Boolean } ->
@@ -153,7 +186,7 @@ analyzeFactor schema factor =
         { op: _, s1: Null, s2: _ } ->
           Right Boolean
         _ ->
-          Left $ "invalid combination of types for '" <> show op <> "' operator"
+          Left $ show $ ErrIncompatibleBinaryTypes op s1 s2
 
 
 analyzeOperand :: Schema -> Parser.Operand -> Either String Schema
@@ -176,10 +209,10 @@ analyzeOperand schema operand =
         Just schema' ->
           Right schema'
         Nothing ->
-          Left $ "unexisting field: '" <> key <> "'"
+          Left $ show $ ErrUnexistingField Lexer.Where key
 
     { schema: _, operand: Parser.Field _ } ->
-      Left "invalid operation: can't analyze field on non object"
+      Left $ show $ ErrIncompatibleSchema schema
 
 
 analyzeProjection :: Schema -> StrMap Schema -> Parser.Projection -> Either String (StrMap Schema)
@@ -191,16 +224,18 @@ analyzeProjection schema acc (Parser.Projection selector) =
             Right $ StrMap.insert (maybe key (\x -> x) as) schema' acc
 
           Nothing ->
-            Left $ "unexisting field: '" <> key <> "'"
+            Left $ show $ ErrUnexistingField Lexer.Select key
 
       { schema: Object source, selector: f@(Parser.Function Lexer.Count key as) } ->
         case StrMap.lookup key source of
           Just (Array _) ->
             Right $ StrMap.insert (maybe key (\x -> x) as) Number acc
-          Just _ ->
-            Left $ "invalid operation: function '" <> show f <> "' applied to non array"
+
+          Just schema' ->
+            Left $ show $ ErrIncompatibleFnType Lexer.Count schema'
+
           Nothing ->
-            Left $ "unexisting field: '" <> key <> "'"
+            Left $ show $ ErrUnexistingField Lexer.Select key
 
       { schema: Object source, selector: f@(Parser.Function Lexer.Avg key as) } ->
         unsafePartial $ analyzeNumberProjection source f
@@ -215,7 +250,7 @@ analyzeProjection schema acc (Parser.Projection selector) =
         unsafePartial $ analyzeNumberProjection source f
 
       _ ->
-        Left "invalid operation: can't SELECT on non object"
+        Left $ show $ ErrIncompatibleSchema schema
   where
 
     analyzeNumberProjection :: Partial => StrMap Schema -> Parser.Selector -> Either String (StrMap Schema)
@@ -225,10 +260,12 @@ analyzeProjection schema acc (Parser.Projection selector) =
           case StrMap.lookup key source of
             Just (Array Number) ->
               Right $ StrMap.insert (maybe key (\x -> x) as) Number acc
-            Just _ ->
-              Left $ "invalid operation: function '" <> show f <> "' applied to non array<number>"
+
+            Just schema' ->
+              Left $ show $ ErrIncompatibleFnType f schema'
+
             Nothing ->
-              Left $ "unexisting field: '" <> key <> "'"
+              Left $ show $ ErrUnexistingField Lexer.Select key
 
         [base, key'] ->
           case StrMap.lookup base source of
@@ -236,31 +273,34 @@ analyzeProjection schema acc (Parser.Projection selector) =
               case StrMap.lookup key' source' of
                 Just Number ->
                   Right $ StrMap.insert (maybe key' (\x -> x) as) Number acc
-                Just _ ->
-                  Left $ "invalid operation: function '" <> show f <> "' applied to non number"
+
+                Just schema' ->
+                  Left $ show $ ErrIncompatibleFnType f schema'
+
                 Nothing ->
-                  Left $ "unexisting field: '" <> key <> "'"
-            Just _ ->
-              Left $ "invalid operation: function '" <> show f <> "': target isn't array<object>"
+                  Left $ show $ ErrUnexistingField Lexer.Select key
+
+            Just schema' ->
+              Left $ show $ ErrIncompatibleFnType f schema'
 
         _ ->
-          Left $ "invalid field's name: '" <> key <> "'"
+          Left $ show $ ErrInvalidFieldName key
 
 
 analyzeAggregation :: Schema -> StrMap Schema -> Parser.Aggregation -> Either String (StrMap Schema)
 analyzeAggregation schema acc (Parser.Aggregation selector) =
   case { schema, selector } of
     { selector: Parser.Selector "_id" Nothing } ->
-      Left $ "reserved field's name: _id"
+      Left $ show $ ErrReservedFieldName "_id"
 
     { selector: Parser.Selector _ (Just "_id") } ->
-      Left $ "reserved field's name: _id"
+      Left $ show $ ErrReservedFieldName "_id"
 
     { selector: Parser.Function _ "_id" Nothing } ->
-      Left $ "reserved field's name: _id"
+      Left $ show $ ErrReservedFieldName "_id"
 
     { selector: Parser.Function _ _ (Just "_id") } ->
-      Left $ "reserved field's name: _id"
+      Left $ show $ ErrReservedFieldName "_id"
 
     { schema: Object source, selector: Parser.Selector key as } ->
       case StrMap.lookup key source of
@@ -268,14 +308,14 @@ analyzeAggregation schema acc (Parser.Aggregation selector) =
           Right $ StrMap.insert (maybe key (\x -> x) as) (Array schema') acc
 
         Nothing ->
-          Left $ "unexisting field: '" <> key <> "'"
+          Left $ show $ ErrUnexistingField Lexer.Select key
 
     { schema: Object source, selector: f@(Parser.Function Lexer.Count key as) } ->
       case StrMap.lookup key source of
         Just _ ->
           Right $ StrMap.insert (maybe key (\x -> x) as) Number acc
         Nothing ->
-          Left $ "unexisting field: '" <> key <> "'"
+          Left $ show $ ErrUnexistingField Lexer.Select key
 
     { schema: Object source, selector: f@(Parser.Function Lexer.Avg key as) } ->
       unsafePartial $ analyzeNumberAggregation source f
@@ -288,8 +328,9 @@ analyzeAggregation schema acc (Parser.Aggregation selector) =
 
     { schema: Object source, selector: f@(Parser.Function Lexer.Sum key as) } ->
       unsafePartial $ analyzeNumberAggregation source f
+
     _ ->
-      Left "invalid operation: can't SELECT on non object"
+      Left $ show $ ErrIncompatibleSchema schema
 
   where
 
@@ -300,13 +341,15 @@ analyzeAggregation schema acc (Parser.Aggregation selector) =
           case StrMap.lookup key source of
             Just Number ->
               Right $ StrMap.insert (maybe key (\x -> x) as) Number acc
-            Just _ ->
-              Left $ "invalid operation: function '" <> show f <> "' applied to non number"
+
+            Just schema' ->
+              Left $ show $ ErrIncompatibleFnType f schema'
+
             Nothing ->
-              Left $ "unexisting field: '" <> key <> "'"
+              Left $ show $ ErrUnexistingField Lexer.Select key
 
         _ ->
-          Left $ "invalid field's name: '" <> key <> "'"
+          Left $ show $ ErrInvalidFieldName key
 
 
 instance decodeSchema :: DecodeJson Schema where
@@ -335,7 +378,7 @@ instance decodeSchema :: DecodeJson Schema where
         Right Null
 
       decodeString s =
-        Left ("can't decode type: invalid provided type: " <> s)
+        Left ("unknown schema's type" <> s)
 
       decodeArray xs =
         if length xs /= 1

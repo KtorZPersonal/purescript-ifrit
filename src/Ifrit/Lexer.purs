@@ -71,6 +71,8 @@ data Binary
   | Neq
   | Lt
   | Gt
+  | Lte
+  | Gte
 
 derive instance eqBinary :: Eq Binary
 
@@ -300,6 +302,10 @@ instance showBinary :: Show Binary where
     "<"
   show Gt =
     ">"
+  show Lte =
+    "<="
+  show Gte =
+    ">="
 
 
 instance showUnary :: Show Unary where

@@ -24,8 +24,6 @@ import Partial.Unsafe(unsafePartial)
 import Ifrit.Parser as Parser
 import Ifrit.Lexer as Lexer
 
-import Debug.Trace(trace)
-
 
 -- CLASS & TYPES
 class Ingest pipeline stage where
@@ -33,6 +31,17 @@ class Ingest pipeline stage where
 
 class IngestNot pipeline stage where
   ingestNot :: stage -> pipeline
+
+
+-- ERRORS
+data Error
+  = ErrCondition Parser.Factor
+
+instance showError :: Show Error where
+  show err =
+    case err of
+      ErrCondition factor ->
+        "invalid condition: " <> show factor <> ": should target a field of the document"
 
 
 -- UTILITIES
@@ -73,10 +82,14 @@ ingestBinary op =
       "$lt"
     Lexer.Gt ->
       "$gt"
+    Lexer.Lte ->
+      "$lte"
+    Lexer.Gte ->
+      "$gte"
 
 
-ingestRevBinary :: Lexer.Binary -> String
-ingestRevBinary op =
+ingestReverseBinary :: Lexer.Binary -> String
+ingestReverseBinary op =
   case op of
     Lexer.Eq ->
       "$eq"
@@ -86,6 +99,10 @@ ingestRevBinary op =
       "$gte"
     Lexer.Gt ->
       "$lte"
+    Lexer.Lte ->
+      "$gt"
+    Lexer.Gte ->
+      "$lt"
 
 
 fromArray :: Json -> Array Json
@@ -351,7 +368,6 @@ instance ingestFactor :: Ingest (Either String Json) Parser.Factor where
       _ ->
         ingest o
 
-
   ingest (Parser.Condition c) = do
     ingest c
 
@@ -360,7 +376,7 @@ instance ingestFactor :: Ingest (Either String Json) Parser.Factor where
       Lexer.Not -> do
         ingestNot o
 
-  ingest (Parser.Binary op left right) = do
+  ingest factor@(Parser.Binary op left right) = do
     case { left, right } of
       { left: Parser.Field f, right: _ } -> do
         right' <- ingest right
@@ -368,10 +384,10 @@ instance ingestFactor :: Ingest (Either String Json) Parser.Factor where
 
       { left: _, right: Parser.Field f } -> do
         left' <- ingest left
-        pure $ singleton f $ singleton (ingestRevBinary op) left'
+        pure $ singleton f $ singleton (ingestReverseBinary op) left'
 
       _ ->
-        Left "invalid condition: need to target a field of the document"
+        Left $ show $ ErrCondition factor
 
 
 instance ingestNotFactor :: IngestNot (Either String Json) Parser.Factor where
@@ -390,18 +406,35 @@ instance ingestNotFactor :: IngestNot (Either String Json) Parser.Factor where
       Lexer.Not -> do
         ingestNot o
 
-  ingestNot (Parser.Binary op left right) = do
-    case { left, right } of
-      { left: Parser.Field f, right: _ } -> do
-        right' <- ingest right
-        pure $ singleton f $ singleton (ingestRevBinary op) right'
+  ingestNot factor@(Parser.Binary op left right) = do
+      case { left, right } of
+        { left: Parser.Field f, right: _ } -> do
+          right' <- ingest right
+          pure $ singleton f $ singleton (ingestBinary (not op)) right'
 
-      { left: _, right: Parser.Field f } -> do
-        left' <- ingest left
-        pure $ singleton f $ singleton (ingestBinary op) left'
+        { left: _, right: Parser.Field f } -> do
+          left' <- ingest left
+          pure $ singleton f $ singleton (ingestReverseBinary (not op)) left'
 
-      _ ->
-        Left "invalid condition: need to target a field of the document"
+        _ ->
+          Left $ show $ ErrCondition factor
+
+    where
+      not :: Lexer.Binary -> Lexer.Binary
+      not op' =
+        case op' of
+          Lexer.Eq ->
+            Lexer.Neq
+          Lexer.Neq ->
+            Lexer.Eq
+          Lexer.Lt ->
+            Lexer.Gte
+          Lexer.Gt ->
+            Lexer.Lte
+          Lexer.Lte ->
+            Lexer.Gt
+          Lexer.Gte ->
+            Lexer.Lt
 
 
 instance ingestOperand :: Ingest (Either String Json) Parser.Operand where
