@@ -176,10 +176,16 @@ analyzeProjection schema acc (Parser.Projection selector) =
           Nothing ->
             Left $ "unexisting field: '" <> key <> "'"
 
-      { schema: Object source, selector: f@(Parser.Function Lexer.Avg key as) } ->
-        unsafePartial $ analyzeNumberProjection source f
-
       { schema: Object source, selector: f@(Parser.Function Lexer.Count key as) } ->
+        case StrMap.lookup key source of
+          Just (Array _) ->
+            Right $ StrMap.insert (maybe key (\x -> x) as) Number acc
+          Just _ ->
+            Left $ "invalid operation: function '" <> show f <> "' applied to non array"
+          Nothing ->
+            Left $ "unexisting field: '" <> key <> "'"
+
+      { schema: Object source, selector: f@(Parser.Function Lexer.Avg key as) } ->
         unsafePartial $ analyzeNumberProjection source f
 
       { schema: Object source, selector: f@(Parser.Function Lexer.Max key as) } ->
@@ -247,10 +253,14 @@ analyzeAggregation schema acc (Parser.Aggregation selector) =
         Nothing ->
           Left $ "unexisting field: '" <> key <> "'"
 
-    { schema: Object source, selector: f@(Parser.Function Lexer.Avg key as) } ->
-      unsafePartial $ analyzeNumberAggregation source f
-
     { schema: Object source, selector: f@(Parser.Function Lexer.Count key as) } ->
+      case StrMap.lookup key source of
+        Just _ ->
+          Right $ StrMap.insert (maybe key (\x -> x) as) Number acc
+        Nothing ->
+          Left $ "unexisting field: '" <> key <> "'"
+
+    { schema: Object source, selector: f@(Parser.Function Lexer.Avg key as) } ->
       unsafePartial $ analyzeNumberAggregation source f
 
     { schema: Object source, selector: f@(Parser.Function Lexer.Max key as) } ->

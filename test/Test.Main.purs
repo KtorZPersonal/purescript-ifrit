@@ -1009,3 +1009,59 @@ main = runTest do
               (P.OrderAsc "patate" : Nil)
             )
           )
+
+    test "SELECT COUNT(name) GROUP BY age" do
+      Assert.equal
+        (S.fromString
+          """
+          {
+            "name": "number",
+            "_id": "number"
+          }
+          """)
+          (do
+            schema <- S.fromString
+              """
+              {
+                "age": "number",
+                "name": "string"
+              }
+              """
+            S.analyze schema (P.Group
+                (P.IdxField "age")
+                (fromFoldable
+                  [ P.Aggregation $ P.Function L.Count "name" Nothing
+                  ])
+                Nothing
+                Nothing
+                Nil
+              )
+            )
+
+    test "SELECT COUNT(spells)" do
+      Assert.equal
+        (S.fromString
+          """
+          {
+            "spells": "number"
+          }
+          """)
+          (do
+            schema <- S.fromString
+              """
+              {
+                "spells": [{
+                  "name": "string",
+                  "power": "number"
+                }]
+              }
+              """
+            S.analyze schema (P.Select
+                (fromFoldable
+                  [ P.Projection $ P.Function L.Count "spells" Nothing
+                  ])
+                Nothing
+                Nothing
+                Nil
+              )
+            )

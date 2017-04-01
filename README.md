@@ -158,8 +158,21 @@ and objects can be declared by nesting primitive types in JSON arrays `[]` or ob
 
 ## SQL language support
 
-> ⚠ Ifrit is case-sensitive, e.g. `AS != as`, `NULL != null`, etc. ⚠ 
+type        | support
+--------    | --------
+projection  | `SELECT, AS, FROM`
+grouping    | `GROUP BY, DISTINCT`
+filtering   | `WHERE, LIMIT, OFFSET`
+sorting     | `ORDER BY, DESC, ASC`
+operators   | `AND, OR, NOT, =, !=, >, <`
 
+function | applicable type
+-------- | ----------------
+AVG      | number
+COUNT    | any
+MAX      | number
+MIN      | number
+SUM      | number
 
 > ⚠ Ifrit relies on a strict order of clauses ⚠
 >  
@@ -173,28 +186,23 @@ and objects can be declared by nesting primitive types in JSON arrays `[]` or ob
 > - (8) `LIMIT`
 > - (9) `OFFSET`
 
-type        | support
---------    | --------
-projection  | `SELECT, AS, FROM`
-grouping    | `GROUP BY, DISTINCT`
-filtering   | `WHERE, LIMIT, OFFSET`
-sorting     | `ORDER BY, DESC, ASC`
-operators   | `AND, OR, NOT, =, !=, >, <`
+#### Differences with SQL
 
-Ifrit supports derived tables via nesting queries using the `FROM` keyword. This can be used to
-define a multi-level pipeline of map / reduce operations. 
+- Ifrit is case-sensitive, e.g. `AS != as`, `NULL != null`, etc.
 
-function | applicable type
--------- | ----------------
-AVG      | number
-COUNT    | any
-MAX      | number
-MIN      | number
-SUM      | number
+- `ORDER BY` can't be use with `NULL`
 
-Aggregation functions can be applied to numbers when used with `GROUP BY` or directly to array
-of numbers when apply without. Ifrit also supports nested notation for array of objects (e.g.
-`SELECT AVG(items.price)`).
+- Ifrit can't `JOIN` from other collections, the `FROM` can only be used to defined derived
+  tables, i.e, define a multi-level pipeline of map / reduce operations.
+
+- Aggregation functions can be applied to numbers when used with `GROUP BY` or directly to
+  array of numbers when apply without. Ifrit also supports nested notation for array of objects
+  (e.g.  `SELECT AVG(items.price)`).
+
+- When no aliase is specified, the argument is used to name the property in the output schema. 
+  Exception for `COUNT(*)` where the property is named `count`.
+
+
 
 # Benchmark
 
