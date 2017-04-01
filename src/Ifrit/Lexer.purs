@@ -30,10 +30,16 @@ import Text.Parsing.StringParser.String(regex)
 data Keyword
   = And
   | As
+  | Asc
+  | Desc
+  | Distinct
   | From
   | GroupBy
+  | Limit
   | Null
+  | Offset
   | Or
+  | OrderBy
   | Select
   | Where
 
@@ -73,8 +79,8 @@ derive instance eqUnary :: Eq Unary
 
 
 data Token
-  = Invalid
-  | Comma
+  = Comma
+  | Star
   | Function Funktion
   | Parenthesis Parenthesis
   | Keyword Keyword
@@ -99,10 +105,16 @@ keyword str = unsafePartial $
   case trim str of
     "AND" -> And
     "AS" -> As
+    "ASC" -> Asc
+    "DESC" -> Desc
+    "DISTINCT" -> Distinct
     "FROM" -> From
     "GROUPBY" -> GroupBy
+    "LIMIT" -> Limit
     "NULL" -> Null
+    "OFFSET" -> Offset
     "OR" -> Or
+    "ORDER BY" -> OrderBy
     "SELECT" -> Select
     "WHERE" -> Where
 
@@ -143,7 +155,8 @@ infixr 7 parse as </*/>
 
 nextKeyword :: Parser Token
 nextKeyword =
-  keyword >>> Keyword </*/> "(AND|AS|FROM|GROUP BY|NULL|OR|SELECT|WHERE)"
+  keyword >>> Keyword </*/>
+    "(AND|AS|ASC|DESC|DISTINCT|FROM|GROUP BY|LIMIT|NULL|OFFSET|OR|ORDER BY|SELECT|WHERE)"
 
 
 nextFunction :: Parser Token
@@ -162,6 +175,11 @@ nextBinary =
   <|> Binary Eq </$/> "="
   <|> Binary Lt </$/> "<"
   <|> Binary Gt </$/> ">"
+
+
+nextStar :: Parser Token
+nextStar =
+  Star </$/> "*"
 
 
 nextBoolean :: Parser Token
@@ -215,6 +233,7 @@ parser =
   <|> nextFunction
   <|> nextUnary
   <|> nextBinary
+  <|> nextStar
   <|> nextBoolean
   <|> nextNumber
   <|> nextString
@@ -246,6 +265,8 @@ instance showToken :: (Show Number, Show Keyword) => Show Token where
     show k
   show (Function f) =
     show f
+  show Star =
+    "*"
   show (Word w) =
     w
   show (String s) =
@@ -264,8 +285,6 @@ instance showToken :: (Show Number, Show Keyword) => Show Token where
     show x
   show (Unary x) =
     show x
-  show Invalid =
-    "INVALID_TOKEN"
   show EOF =
     "EOF"
 
@@ -287,22 +306,34 @@ instance showUnary :: Show Unary where
 
 
 instance showKeyword :: Show Keyword where
-  show Select =
-    "SELECT"
-  show GroupBy =
-    "GROUP BY"
-  show Where =
-    "WHERE"
-  show As =
-    "AS"
-  show From =
-    "FROM"
   show And =
     "AND"
-  show Or =
-    "OR"
+  show As =
+    "AS"
+  show Asc =
+    "ASC"
+  show Desc =
+    "DESC"
+  show Distinct =
+    "DISTINCT"
+  show From =
+    "FROM"
+  show GroupBy =
+    "GROUP BY"
+  show Limit =
+    "LIMIT"
   show Null =
     "NULL"
+  show Offset =
+    "OFFSET"
+  show Or =
+    "OR"
+  show OrderBy =
+    "ORDER BY"
+  show Select =
+    "SELECT"
+  show Where =
+    "WHERE"
 
 
 instance showFunktion :: Show Funktion where
