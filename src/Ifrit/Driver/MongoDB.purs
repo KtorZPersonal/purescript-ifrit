@@ -6,7 +6,7 @@ module Ifrit.Driver.MongoDB
 import Prelude
 
 import Control.Apply(lift2)
-import Data.Argonaut.Core(Json, JAssoc, jsonEmptyObject, jsonZero, jsonNull)
+import Data.Argonaut.Core(Json, JAssoc, jsonEmptyObject, jsonZero, jsonNull, jsonTrue, jsonFalse)
 import Data.Argonaut.Core as Argonaut
 import Data.Argonaut.Encode(encodeJson, extend, (:=), (~>))
 import Data.Array(concat)
@@ -24,10 +24,15 @@ import Partial.Unsafe(unsafePartial)
 import Ifrit.Parser as Parser
 import Ifrit.Lexer as Lexer
 
+import Debug.Trace(trace)
+
 
 -- CLASS & TYPES
 class Ingest pipeline stage where
   ingest :: stage -> pipeline
+
+class IngestNot pipeline stage where
+  ingestNot :: stage -> pipeline
 
 
 -- UTILITIES
@@ -58,10 +63,29 @@ extendM = lift2 extend
 
 
 ingestBinary :: Lexer.Binary -> String
-ingestBinary Lexer.Eq = "$eq"
-ingestBinary Lexer.Neq = "$neq"
-ingestBinary Lexer.Lt = "$lt"
-ingestBinary Lexer.Gt = "$gt"
+ingestBinary op =
+  case op of
+    Lexer.Eq ->
+      "$eq"
+    Lexer.Neq ->
+      "$neq"
+    Lexer.Lt ->
+      "$lt"
+    Lexer.Gt ->
+      "$gt"
+
+
+ingestRevBinary :: Lexer.Binary -> String
+ingestRevBinary op =
+  case op of
+    Lexer.Eq ->
+      "$eq"
+    Lexer.Neq ->
+      "$neq"
+    Lexer.Lt ->
+      "$gte"
+    Lexer.Gt ->
+      "$lte"
 
 
 fromArray :: Json -> Array Json
@@ -286,6 +310,17 @@ instance ingestCondition :: Ingest (Either String Json) Parser.Condition where
     pure $ singleton "$or" (list [t1', t2'])
 
 
+instance ingestNotCondition :: IngestNot (Either String Json) Parser.Condition where
+  ingestNot (Parser.Term t) = do
+    t' <- ingestNot t
+    pure t'
+
+  ingestNot (Parser.Or t1 t2) = do
+    t1' <- ingestNot t1
+    t2' <- ingestNot t2
+    pure $ singleton "$and" (list [t1', t2'])
+
+
 instance ingestTerm :: Ingest (Either String Json) Parser.Term where
   ingest (Parser.Factor f) = do
     f' <- ingest f
@@ -297,16 +332,76 @@ instance ingestTerm :: Ingest (Either String Json) Parser.Term where
     pure $ singleton "$and" (list [f1', f2'])
 
 
+instance ingestNotTerm :: IngestNot (Either String Json) Parser.Term where
+  ingestNot (Parser.Factor f) = do
+    f' <- ingestNot f
+    pure f'
+
+  ingestNot (Parser.And f1 f2) = do
+    f1' <- ingestNot f1
+    f2' <- ingestNot f2
+    pure $ singleton "$or" (list [f1', f2'])
+
+
 instance ingestFactor :: Ingest (Either String Json) Parser.Factor where
   ingest (Parser.Operand o) = do
-    o' <- ingest o
-    pure o'
+    case o of
+      Parser.Field f ->
+        pure $ singleton f jsonTrue
+      _ ->
+        ingest o
 
-  ingest (Parser.Binary op o1 o2) = do
-    o1' <- ingest o1
-    o2' <- ingest o2
-    let op' = ingestBinary op
-    pure $ singleton op' (list [o1', o2'])
+
+  ingest (Parser.Condition c) = do
+    ingest c
+
+  ingest (Parser.Unary op o) = do
+    case op of
+      Lexer.Not -> do
+        ingestNot o
+
+  ingest (Parser.Binary op left right) = do
+    case { left, right } of
+      { left: Parser.Field f, right: _ } -> do
+        right' <- ingest right
+        pure $ singleton f $ singleton (ingestBinary op) right'
+
+      { left: _, right: Parser.Field f } -> do
+        left' <- ingest left
+        pure $ singleton f $ singleton (ingestRevBinary op) left'
+
+      _ ->
+        Left "invalid condition: need to target a field of the document"
+
+
+instance ingestNotFactor :: IngestNot (Either String Json) Parser.Factor where
+  ingestNot (Parser.Operand o) = do
+    case o of
+      Parser.Field f ->
+        pure $ singleton f jsonFalse
+      _ ->
+        ingest o
+
+  ingestNot (Parser.Condition c) =
+    ingestNot c
+
+  ingestNot (Parser.Unary op o) = do
+    case op of
+      Lexer.Not -> do
+        ingestNot o
+
+  ingestNot (Parser.Binary op left right) = do
+    case { left, right } of
+      { left: Parser.Field f, right: _ } -> do
+        right' <- ingest right
+        pure $ singleton f $ singleton (ingestRevBinary op) right'
+
+      { left: _, right: Parser.Field f } -> do
+        left' <- ingest left
+        pure $ singleton f $ singleton (ingestBinary op) left'
+
+      _ ->
+        Left "invalid condition: need to target a field of the document"
 
 
 instance ingestOperand :: Ingest (Either String Json) Parser.Operand where
@@ -320,8 +415,6 @@ instance ingestOperand :: Ingest (Either String Json) Parser.Operand where
     pure $ encodeJson $ "$" <> s
   ingest (Parser.Null) =
     pure jsonNull
-  ingest (Parser.Condition c) =
-    ingest c
 
 
 instance ingestIndex :: Ingest (Either String Json) Parser.Index where

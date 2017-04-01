@@ -99,6 +99,7 @@ analyzeCondition schema condition =
   case condition of
     Parser.Term t ->
       analyzeTerm schema t
+
     Parser.Or t1 t2 ->
       traverse (analyzeTerm schema) [t1, t2] >>= const (Right Null)
 
@@ -108,6 +109,7 @@ analyzeTerm schema term =
   case term of
     Parser.Factor f ->
       analyzeFactor schema f
+
     Parser.And f1 f2 ->
       traverse (analyzeFactor schema) [f1, f2] >>= const (Right Null)
 
@@ -117,27 +119,39 @@ analyzeFactor schema factor =
   case factor of
     Parser.Operand o ->
       analyzeOperand schema o
+
+    Parser.Condition c ->
+      analyzeCondition schema c
+
+    Parser.Unary op o -> do
+      s <- analyzeCondition schema o
+      case s of
+        Boolean ->
+          Right Boolean
+        _ ->
+          Left $ "invalid combination of types for '" <> show op <> "' operator"
+
     Parser.Binary op o1 o2 -> do
       Pair s1 s2 <- traverse (analyzeOperand schema) (Pair o1 o2)
       case { op, s1, s2 } of
         { op: Lexer.Gt, s1: Number, s2: Number } ->
-          Right Null
+          Right Boolean
         { op: Lexer.Lt, s1: Number, s2: Number } ->
-          Right Null
+          Right Boolean
         { op: Lexer.Gt, s1: _, s2: _ } ->
           Left $ "invalid combination of types for '" <> show op <> "' operator"
         { op: Lexer.Lt, s1: _, s2: _ } ->
           Left $ "invalid combination of types for '" <> show op <> "' operator"
         { op: _, s1: Number, s2: Number } ->
-          Right Null
+          Right Boolean
         { op: _, s1: Boolean, s2: Boolean } ->
-          Right Null
+          Right Boolean
         { op: _, s1: String, s2: String } ->
-          Right Null
+          Right Boolean
         { op: _, s1: _, s2: Null } ->
-          Right Null
+          Right Boolean
         { op: _, s1: Null, s2: _ } ->
-          Right Null
+          Right Boolean
         _ ->
           Left $ "invalid combination of types for '" <> show op <> "' operator"
 
@@ -147,20 +161,23 @@ analyzeOperand schema operand =
   case { schema, operand } of
     { schema: _, operand: Parser.String _ } ->
       Right String
+
     { schema: _, operand: Parser.Boolean _ } ->
       Right Boolean
+
     { schema: _, operand: Parser.Number _ } ->
       Right Number
+
     { schema: _, operand: Parser.Null } ->
       Right Null
-    { schema: _, operand: Parser.Condition c } ->
-      analyzeCondition schema c
+
     { schema: Object source, operand: Parser.Field key } ->
       case StrMap.lookup key source of
         Just schema' ->
           Right schema'
         Nothing ->
           Left $ "unexisting field: '" <> key <> "'"
+
     { schema: _, operand: Parser.Field _ } ->
       Left "invalid operation: can't analyze field on non object"
 
@@ -298,20 +315,28 @@ instance decodeSchema :: DecodeJson Schema where
     where
       decodeNull _ =
         Left "can't decode null to schema"
+
       decodeBoolean _ =
         Left "can't decode boolean to schema"
+
       decodeNumber _ =
         Left "can't decode number to schema"
+
       decodeString "string" =
         Right String
+
       decodeString "number" =
         Right Number
+
       decodeString "boolean" =
         Right Boolean
+
       decodeString "null" =
         Right Null
+
       decodeString s =
         Left ("can't decode type: invalid provided type: " <> s)
+
       decodeArray xs =
         if length xs /= 1
            then Left "can't decode array: exactly one element is expected"
@@ -320,7 +345,9 @@ instance decodeSchema :: DecodeJson Schema where
               Left "can't decode array: exactly one element is expected"
              Just schema ->
                Array <$> decodeJson schema
-      decodeObject obj = Object <$> traverse decodeJson obj
+
+      decodeObject obj =
+        Object <$> traverse decodeJson obj
 
 
 instance encodeJsonSchema :: EncodeJson Schema where
@@ -328,14 +355,19 @@ instance encodeJsonSchema :: EncodeJson Schema where
     case schema of
       Object schema' ->
         encodeJson $ map encodeJson schema'
+
       Array schema' ->
         encodeJson $ [encodeJson schema']
+
       Number ->
         encodeJson "number"
+
       String ->
         encodeJson "string"
+
       Boolean ->
         encodeJson "boolean"
+
       Null ->
         encodeJson "null"
 

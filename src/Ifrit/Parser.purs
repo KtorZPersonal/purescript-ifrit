@@ -77,6 +77,8 @@ derive instance eqTerm :: Eq Term
 
 data Factor
   = Operand Operand
+  | Condition Condition
+  | Unary Lexer.Unary Condition
   | Binary Lexer.Binary Operand Operand
 
 derive instance eqFactor :: Eq Factor
@@ -88,7 +90,6 @@ data Operand
   | Number Decimal
   | Field String
   | Null
-  | Condition Condition
 
 derive instance eqOperand :: Eq Operand
 
@@ -177,12 +178,12 @@ instance parseOperand :: Parse Operand where
 
       (Lexer.Parenthesis Lexer.Open : q) -> do
         put q
-        condition :: Condition <- parse
+        operand :: Operand <- parse
         tokens' <- get
         case tokens' of
           (Lexer.Parenthesis Lexer.Close : q') -> do
             put q'
-            pure $ Condition condition
+            pure $ operand
           _ ->
             lift $ Left "parsing error: unbalanced parenthesis expression"
 
@@ -195,16 +196,35 @@ instance parseOperand :: Parse Operand where
 
 instance parseFactor :: Parse Factor where
   parse = do
-    left :: Operand <- parse
     tokens <- get
     case tokens of
-      (Lexer.Binary op : q) -> do
+      (Lexer.Unary op : q) -> do
         put q
-        right :: Operand <- parse
-        pure $ Binary op left right
+        condition :: Condition <- parse
+        pure $ Unary op condition
 
-      _ ->
-        pure $ Operand left
+      (Lexer.Parenthesis Lexer.Open : q) -> do
+        put q
+        condition :: Condition <- parse
+        tokens' <- get
+        case tokens' of
+          (Lexer.Parenthesis Lexer.Close : q') -> do
+            put q'
+            pure $ Condition condition
+          _ ->
+            lift $ Left "parsing error: unbalanced parenthesis expression"
+
+      _ -> do
+        left :: Operand <- parse
+        tokens' <- get
+        case tokens' of
+          (Lexer.Binary op : q) -> do
+            put q
+            right :: Operand <- parse
+            pure $ Binary op left right
+
+          _ ->
+            pure $ Operand left
 
 
 instance parseTerm :: Parse Term where
@@ -509,6 +529,10 @@ instance showTerm :: Show Term where
 instance showFactor :: Show Factor where
   show (Operand x) =
     show x
+  show (Condition x) =
+    "(" <> show x <> ")"
+  show (Unary op x) =
+    show op <> "(" <> show x <> ")"
   show (Binary op a b) =
     show a <> " " <> show op <> " " <> show b
 
@@ -524,8 +548,6 @@ instance showOperand :: Show Operand where
     x
   show Null =
     "NULL"
-  show (Condition x) =
-    "(" <> show x <> ")"
 
 
 instance showOrder :: Show Order where

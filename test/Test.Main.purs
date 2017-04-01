@@ -183,6 +183,19 @@ main = runTest do
           , str: "patate OFFSET 1.4"
           })
 
+    test "[0] NOT(patate)" do
+      Assert.equal
+        (Right $ fromFoldable
+          [ L.Unary L.Not
+          , L.Parenthesis L.Open
+          , L.Word "patate"
+          , L.Parenthesis L.Close
+          , L.EOF
+          ])
+        (evalStateT L.tokenize
+          { pos: 0
+          , str: "NOT (patate)"
+          })
 
   --  ____
   -- |  _ \ __ _ _ __ ___  ___ _ __
@@ -615,6 +628,32 @@ main = runTest do
           , L.EOF
           ]))
 
+    test "SELECT patate WHERE NOT age > 12" do
+      Assert.equal
+        (Right $ P.Select
+          (fromFoldable
+            [ P.Projection $ P.Selector "patate" Nothing
+            ])
+          Nothing
+          (Just $ P.Term $ P.Factor $ P.Unary
+            L.Not (P.Term $ P.Factor $ P.Binary
+              L.Gt (P.Field "age") (P.Number $ fromInt 12)
+            )
+          )
+          Nil
+          Nothing
+          Nothing
+        )
+        (evalStateT P.parse (fromFoldable
+          [ L.Keyword L.Select
+          , L.Word "patate"
+          , L.Keyword L.Where
+          , L.Unary L.Not
+          , L.Word "age"
+          , L.Binary L.Gt
+          , L.Number $ fromInt 12
+          , L.EOF
+          ]))
 
   --  ____       _
   -- |  _ \ _ __(_)_   _____ _ __
@@ -716,7 +755,9 @@ main = runTest do
           [
             {
               "$match": {
-                "$lt": ["$age", 16]
+                "age": {
+                  "$lt": 16
+                }
               }
             },
             {
@@ -736,8 +777,8 @@ main = runTest do
             {
               "$match": {
                 "$and": [
-                  { "$lt": ["$age", 16] },
-                  { "$eq": ["$class", "necromancer"] }
+                  { "age": { "$lt": 16 } },
+                  { "class": { "$eq": "necromancer" } }
                 ]
               }
             },
@@ -752,6 +793,36 @@ main = runTest do
           """)
           (ingest "SELECT AVG(power) AS pwr WHERE age < 16 AND class = \"necromancer\"")
 
+    test "SELECT AVG(power) AS pwr WHERE (age < 16 OR class = \"priest\") AND class = \"necromancer\"" do
+      Assert.equal
+        (jsonParser
+          """
+          [
+            {
+              "$match": {
+                "$and": [
+                  {
+                    "$or": [
+                      { "age": { "$lt": 16 } },
+                      { "class": { "$eq": "priest" } }
+                    ]
+                  },
+                  {
+                    "class": { "$eq": "necromancer" }
+                  }
+                ]
+              }
+            },
+            {
+              "$project": {
+                "pwr": {
+                  "$avg": "$power"
+                }
+              }
+            }
+          ]
+          """)
+          (ingest "SELECT AVG(power) AS pwr WHERE (age < 16 OR class = \"priest\") AND class = \"necromancer\"")
 
     test "SELECT power WHERE parent = NULL" do
       Assert.equal
@@ -760,7 +831,7 @@ main = runTest do
           [
             {
               "$match": {
-                "$eq": ["$parent", null]
+                "parent": { "$eq": null }
               }
             },
             {
@@ -771,6 +842,25 @@ main = runTest do
           ]
           """)
           (ingest "SELECT power WHERE parent = NULL")
+
+    test "SELECT class WHERE NOT(is_necromancer)" do
+      Assert.equal
+        (jsonParser
+          """
+          [
+            {
+              "$match": {
+                "is_necromancer": false
+              }
+            },
+            {
+              "$project": {
+                "class": "$class"
+              }
+            }
+          ]
+          """)
+          (ingest "SELECT class WHERE NOT(is_necromancer)")
 
     test "SELECT power ORDER BY name" do
       Assert.equal
