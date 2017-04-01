@@ -8,7 +8,8 @@
     "build-psc": "pulp build -O -j 4 --skip-entry-point --main 'Ifrit.Core' --src-path src/Ifrit --to dist/bundle.js",
     "build-export": "echo 'module.exports = PS;' >> dist/bundle.js",
     "build-minify": "google-closure-compiler-js dist/bundle.js > dist/bundle.min.js && rm dist/bundle.js",
-    "build": "npm run build-psc && npm run build-export && npm run build-minify"
+    "build": "npm run build-psc && npm run build-export && npm run build-minify",
+    "benchmark": "node test/benchmark"
   },
   "repository": {
     "type": "git",

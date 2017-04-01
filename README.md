@@ -40,7 +40,7 @@ mongodb.MongoClient
     .then((db) => {
         return db
             .collection("transactions")
-            .aggregate(Ifrit.mongodb.compile(schema, query))
+            .aggregate(Ifrit.compile.mongodb(schema, query))
     })
     .then(console.log)
     .catch(console.err)

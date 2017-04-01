@@ -4,7 +4,6 @@ import Prelude
 
 import Control.Monad.State(evalStateT)
 import Data.Argonaut.Core(Json)
-import Data.Argonaut.Encode(encodeJson)
 import Data.Either(Either)
 
 import Ifrit.Lexer as Lexer
@@ -13,7 +12,7 @@ import Ifrit.Semantic as Semantic
 import Ifrit.Driver.MongoDB as MongoDB
 
 class Compile driver where
-  compile :: Json -> String -> Either String { schema :: Json, output :: driver }
+  compile :: Json -> String -> Either String driver
 
 newtype MongoDB = MongoDB Json
 
@@ -28,4 +27,4 @@ instance compileMongoDB :: Compile MongoDB where
     ast :: Parser.Statement <- evalStateT Parser.parse tokens
     schema <- Semantic.analyze schemaIn ast
     output <- MongoDB.ingest ast
-    pure { schema: encodeJson schema, output: MongoDB output }
+    pure $ MongoDB output

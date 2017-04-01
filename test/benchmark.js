@@ -5,7 +5,7 @@ let suite = new Benchmark.Suite()
 
 suite
     .add('SELECT age', function() {
-        Ifrit.compileSync({
+        Ifrit.compile.mongodb({
             "age": "number",
             "class": "string",
             "is_master": "boolean",
@@ -18,7 +18,7 @@ suite
     })
 
     .add('SELECT class AS klass, COUNT(bonus)', function() {
-        Ifrit.compileSync({
+        Ifrit.compile.mongodb({
             "age": "number",
             "class": "string",
             "is_master": "boolean",
@@ -31,7 +31,7 @@ suite
     })
 
     .add('SELECT AVG(age) GROUP BY class', function() {
-        Ifrit.compileSync({
+        Ifrit.compile.mongodb({
             "age": "number",
             "class": "string",
             "is_master": "boolean",
@@ -44,7 +44,7 @@ suite
     })
 
     .add('SELECT is_master WHERE age > 14 AND age < 20', function() {
-        Ifrit.compileSync({
+        Ifrit.compile.mongodb({
             "age": "number",
             "class": "string",
             "is_master": "boolean",
@@ -57,7 +57,7 @@ suite
     })
 
     .add('SELECT AVG(power) AS avg_power FROM (SELECT AVG(spells.power), age) WHERE age > 18 GROUP BY NULL', function() {
-        Ifrit.compileSync({
+        Ifrit.compile.mongodb({
             "age": "number",
             "class": "string",
             "is_master": "boolean",
