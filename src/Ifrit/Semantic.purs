@@ -46,14 +46,14 @@ fromJson =
   decodeJson
 
 analyze :: Schema -> Parser.Statement -> Either String Schema
-analyze schema (Parser.Select projections statement condition orders) = do
+analyze schema (Parser.Select projections statement condition orders limit offset) = do
   schema' <- maybe (Right schema) (analyze schema) statement
   _ <- maybe (Right Null) (analyzeCondition schema') condition
   _ <- traverse (analyzeOrder schema') orders
   schema'' <- List.foldM (analyzeProjection schema') StrMap.empty projections
   pure $ Object schema''
 
-analyze schema (Parser.Group index aggregations statement condition orders) = do
+analyze schema (Parser.Group index aggregations statement condition orders limit offset) = do
   schema' <- maybe (Right schema) (analyze schema) statement
   _ <- maybe (Right Null) (analyzeCondition schema') condition
   _ <- traverse (analyzeOrder schema') orders

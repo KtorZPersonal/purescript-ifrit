@@ -78,32 +78,40 @@ maybeIngest fn =
 
 
 instance ingestStatement :: Ingest (Either String Json) Parser.Statement where
-  ingest (Parser.Select projections statement condition orders) = do
+  ingest (Parser.Select projections statement condition orders limit offset) = do
     projections' :: Array Json <- (singleton "$project" >>> toArray) <$> (ingest projections)
     statement' :: Array Json <- maybeIngest fromArray statement
     condition' :: Array Json <- maybeIngest (\x -> [singleton "$match" x]) condition
     orders' :: Array Json <- if List.length orders == 0
       then Right []
       else (singleton "$sort" >>> toArray) <$> (ingest orders)
+    limit' :: Array Json <- maybeIngest (\x -> [singleton "$limit" x]) limit
+    offset' :: Array Json <- maybeIngest (\x -> [singleton "$skip" x]) offset
     pure $ encodeJson $ concat
       [ statement'
       , condition'
       , orders'
+      , limit'
+      , offset'
       , projections'
       ]
 
-  ingest (Parser.Group index aggregations statement condition orders) = do
+  ingest (Parser.Group index aggregations statement condition orders limit offset) = do
     aggregations' :: Json <- ingest aggregations
     statement' :: Array Json <- maybeIngest fromArray statement
     condition' :: Array Json <- maybeIngest (\x -> [singleton "$match" x]) condition
     index' :: Json <- ingest index
-    orders' <- if List.length orders == 0
+    orders' :: Array Json <- if List.length orders == 0
       then Right []
       else (singleton "$sort" >>> toArray) <$> (ingest orders)
+    limit' :: Array Json <- maybeIngest (\x -> [singleton "$limit" x]) limit
+    offset' :: Array Json <- maybeIngest (\x -> [singleton "$skip" x]) offset
     pure $ encodeJson $ concat
       [ statement'
       , condition'
       , orders'
+      , limit'
+      , offset'
       , [ singleton "$group" (("_id" := index') ~> aggregations') ]
       ]
 
@@ -255,6 +263,16 @@ ingest (Parser.OrderAsc f) =
   pure $ f := 1
 ingest (Parser.OrderDesc f) =
   pure $ f := -1
+
+
+instance ingestLimit :: Ingest (Either String Json) Parser.Limit where
+ingest (Parser.Limit i) =
+  pure $ encodeJson i
+
+
+instance ingestOffset :: Ingest (Either String Json) Parser.Offset where
+ingest (Parser.Offset i) =
+  pure $ encodeJson i
 
 
 instance ingestCondition :: Ingest (Either String Json) Parser.Condition where

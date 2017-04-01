@@ -157,6 +157,33 @@ main = runTest do
           , str: "SELECT patate ORDER BY autruche"
           })
 
+    test "[0] patate LIMIT 14" do
+      Assert.equal
+        (Right $ fromFoldable
+          [ L.Word "patate"
+          , L.Keyword L.Limit
+          , L.Number (fromInt 14)
+          , L.EOF
+          ])
+        (evalStateT L.tokenize
+          { pos: 0
+          , str: "patate LIMIT 14"
+          })
+
+    test "[0] patate OFFSET 1.4" do
+      Assert.equal
+        (Right $ fromFoldable
+          [ L.Word "patate"
+          , L.Keyword L.Offset
+          , L.Number (fromNumber 1.4)
+          , L.EOF
+          ])
+        (evalStateT L.tokenize
+          { pos: 0
+          , str: "patate OFFSET 1.4"
+          })
+
+
   --  ____
   -- |  _ \ __ _ _ __ ___  ___ _ __
   -- | |_) / _` | '__/ __|/ _ \ '__|
@@ -173,6 +200,8 @@ main = runTest do
           Nothing
           Nothing
           Nil
+          Nothing
+          Nothing
         )
         (evalStateT P.parse (fromFoldable
           [ L.Keyword L.Select
@@ -189,6 +218,8 @@ main = runTest do
           Nothing
           Nothing
           Nil
+          Nothing
+          Nothing
         )
         (evalStateT P.parse (fromFoldable
           [ L.Keyword L.Select
@@ -208,6 +239,8 @@ main = runTest do
           Nothing
           Nothing
           Nil
+          Nothing
+          Nothing
         )
         (evalStateT P.parse (fromFoldable
           [ L.Keyword L.Select
@@ -230,6 +263,8 @@ main = runTest do
             L.Gt (P.Field "autruche") (P.Number (fromInt 14)
           ))
           Nil
+          Nothing
+          Nothing
         )
         (evalStateT P.parse (fromFoldable
           [ L.Keyword L.Select
@@ -254,9 +289,13 @@ main = runTest do
             Nothing
             Nothing
             Nil
+            Nothing
+            Nothing
           )
           Nothing
           Nil
+          Nothing
+          Nothing
         )
         (evalStateT P.parse (fromFoldable
           [ L.Keyword L.Select
@@ -279,6 +318,8 @@ main = runTest do
           Nothing
           Nothing
           Nil
+          Nothing
+          Nothing
         )
         (evalStateT P.parse (fromFoldable
           [ L.Keyword L.Select
@@ -325,6 +366,8 @@ main = runTest do
             L.Eq (P.Number (fromNumber 14.0)) (P.Number (fromNumber 42.0))
           )
           Nil
+          Nothing
+          Nothing
         )
         (evalStateT P.parse (fromFoldable
           [ L.Keyword L.Select
@@ -350,6 +393,8 @@ main = runTest do
             L.Neq (P.Field "autruche") (P.String "banana")
           )
           Nil
+          Nothing
+          Nothing
         )
         (evalStateT P.parse (fromFoldable
           [ L.Keyword L.Select
@@ -418,6 +463,8 @@ main = runTest do
           Nothing
           Nothing
           Nil
+          Nothing
+          Nothing
         )
         (evalStateT P.parse (fromFoldable
           [ L.Keyword L.Select
@@ -446,6 +493,8 @@ main = runTest do
             L.Eq (P.Field "patate") P.Null
           )
           Nil
+          Nothing
+          Nothing
         )
         (evalStateT P.parse (fromFoldable
           [ L.Keyword L.Select
@@ -466,6 +515,8 @@ main = runTest do
           Nothing
           Nothing
           (P.OrderAsc "autruche" : Nil)
+          Nothing
+          Nothing
         )
         (evalStateT P.parse (fromFoldable
           [ L.Keyword L.Select
@@ -484,6 +535,8 @@ main = runTest do
           Nothing
           Nothing
           (P.OrderAsc "autruche" : Nil)
+          Nothing
+          Nothing
         )
         (evalStateT P.parse (fromFoldable
           [ L.Keyword L.Select
@@ -503,6 +556,8 @@ main = runTest do
           Nothing
           Nothing
           (P.OrderAsc "autruche" : P.OrderDesc "patate" : Nil)
+          Nothing
+          Nothing
         )
         (evalStateT P.parse (fromFoldable
           [ L.Keyword L.Select
@@ -769,6 +824,8 @@ main = runTest do
               Nothing
               Nothing
               Nil
+              Nothing
+              Nothing
             )
           )
 
@@ -791,6 +848,8 @@ main = runTest do
                 L.Eq (P.Field "patate") (P.String "banana")
               )
               Nil
+              Nothing
+              Nothing
             )
           )
 
@@ -813,6 +872,8 @@ main = runTest do
                 L.Lt (P.Field "autruche") (P.String "banana")
               )
               Nil
+              Nothing
+              Nothing
             )
           )
 
@@ -835,6 +896,8 @@ main = runTest do
                 L.Lt (P.Field "autruche") (P.Number $ fromInt 14)
               )
               Nil
+              Nothing
+              Nothing
             )
           )
 
@@ -857,6 +920,8 @@ main = runTest do
                 L.Eq (P.Field "autruche") (P.Number $ fromInt 14)
               )
               Nil
+              Nothing
+              Nothing
             )
           )
 
@@ -880,6 +945,8 @@ main = runTest do
                 L.Neq (P.Field "patate") (P.Boolean true)
               )
               Nil
+              Nothing
+              Nothing
             )
           )
 
@@ -904,6 +971,8 @@ main = runTest do
                 L.Neq (P.Field "autruche") (P.Number $ fromInt 14)
               )
               Nil
+              Nothing
+              Nothing
             )
           )
 
@@ -925,6 +994,8 @@ main = runTest do
               Nothing
               Nothing
               Nil
+              Nothing
+              Nothing
             )
           )
 
@@ -946,6 +1017,8 @@ main = runTest do
               Nothing
               Nothing
               Nil
+              Nothing
+              Nothing
             )
           )
 
@@ -967,6 +1040,8 @@ main = runTest do
               Nothing
               Nothing
               Nil
+              Nothing
+              Nothing
             )
           )
 
@@ -987,6 +1062,8 @@ main = runTest do
               Nothing
               Nothing
               Nil
+              Nothing
+              Nothing
             )
           )
 
@@ -1007,6 +1084,8 @@ main = runTest do
               Nothing
               Nothing
               (P.OrderAsc "patate" : Nil)
+              Nothing
+              Nothing
             )
           )
 
@@ -1035,6 +1114,8 @@ main = runTest do
                 Nothing
                 Nothing
                 Nil
+                Nothing
+                Nothing
               )
             )
 
@@ -1063,5 +1144,7 @@ main = runTest do
                 Nothing
                 Nothing
                 Nil
+                Nothing
+                Nothing
               )
             )

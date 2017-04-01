@@ -5,6 +5,8 @@ module Ifrit.Parser
   , Condition(..)
   , Factor(..)
   , Index(..)
+  , Limit(..)
+  , Offset(..)
   , Operand(..)
   , Order(..)
   , Projection(..)
@@ -18,6 +20,7 @@ import Prelude
 
 import Control.Monad.State(StateT, get, lift, put)
 import Data.Decimal(Decimal, toString)
+import Data.Int(fromString)
 import Data.Either(Either(..))
 import Data.List(List(..), (:), intercalate, length)
 import Data.Maybe(Maybe(..), maybe)
@@ -33,8 +36,8 @@ class Parse expr where
 
 
 data Statement
-  = Select (List Projection) (Maybe Statement) (Maybe Condition) (List Order)
-  | Group Index (List Aggregation) (Maybe Statement) (Maybe Condition) (List Order)
+  = Select (List Projection) (Maybe Statement) (Maybe Condition) (List Order) (Maybe Limit) (Maybe Offset)
+  | Group Index (List Aggregation) (Maybe Statement) (Maybe Condition) (List Order) (Maybe Limit) (Maybe Offset)
 
 derive instance eqStatement :: Eq Statement
 
@@ -95,6 +98,18 @@ data Order
   | OrderDesc String
 
 derive instance eqOrder :: Eq Order
+
+
+data Limit
+  = Limit Int
+
+derive instance eqLimit :: Eq Limit
+
+
+data Offset
+  = Offset Int
+
+derive instance eqOffset :: Eq Offset
 
 
 data Index
@@ -254,6 +269,44 @@ instance parseOrder :: Parse Order where
         lift $ Left "parsing error: incomplete expression"
 
 
+instance parseLimit :: Parse Limit where
+  parse = do
+    tokens <- get
+    case tokens of
+      (Lexer.Number n : q) -> do
+        case fromString $ toString $ n of
+          Just i -> do
+            put q
+            pure $ Limit i
+          Nothing ->
+            lift $ Left "parsing error: limit must be an integer"
+
+      (h : _) ->
+        lift $ Left $ "parsing error: unexpected token: " <> show h
+
+      Nil ->
+        lift $ Left "parsing error: incomplete expression"
+
+
+instance parseOffset :: Parse Offset where
+  parse = do
+    tokens <- get
+    case tokens of
+      (Lexer.Number n : q) -> do
+        case fromString $ toString $ n of
+          Just i -> do
+            put q
+            pure $ Offset i
+          Nothing ->
+            lift $ Left "parsing error: offset must be an integer"
+
+      (h : _) ->
+        lift $ Left $ "parsing error: unexpected token: " <> show h
+
+      Nil ->
+        lift $ Left "parsing error: incomplete expression"
+
+
 instance parseSelector :: Parse Selector where
   parse = do
     tokens <- get
@@ -305,7 +358,7 @@ instance parseSelector :: Parse Selector where
         lift $ Left  "parsing error: empty expression"
 
 
-instance parseListToken :: Parse a => Parse (List a) where
+instance parseList :: Parse a => Parse (List a) where
   parse = do
     order :: a <- parse
     tokens <- get
@@ -330,16 +383,24 @@ maybeParse key = do
       pure $ Nothing
 
 
-combine :: List Selector -> Maybe Statement -> Maybe Condition -> Maybe Index -> Maybe (List Order) -> Statement
-combine selectors statement condition index orders =
+combine
+  :: List Selector
+  -> Maybe Statement
+  -> Maybe Condition
+  -> Maybe Index
+  -> Maybe (List Order)
+  -> Maybe Limit
+  -> Maybe Offset
+  -> Statement
+combine selectors statement condition index orders limit offset =
   let
       orders' = maybe Nil (\xs -> xs) orders
   in
       case index of
         Nothing ->
-          Select (map Projection selectors) statement condition orders'
+          Select (map Projection selectors) statement condition orders' limit offset
         Just index' ->
-          Group index' (map Aggregation selectors) statement condition orders'
+          Group index' (map Aggregation selectors) statement condition orders' limit offset
 
 
 instance parseStatement :: Parse Statement where
@@ -351,25 +412,27 @@ instance parseStatement :: Parse Statement where
 
       (Lexer.Keyword Lexer.Select : q) -> do
         put q
-        selectors :: List Selector <- parse
-        statement :: Maybe Statement <- maybeParse Lexer.From
-        condition :: Maybe Condition <- maybeParse Lexer.Where
-        index :: Maybe Index <- maybeParse Lexer.GroupBy
-        orders :: Maybe (List Order) <- maybeParse Lexer.OrderBy
+        select :: List Selector <- parse
+        from :: Maybe Statement <- maybeParse Lexer.From
+        where_ :: Maybe Condition <- maybeParse Lexer.Where
+        groupBy :: Maybe Index <- maybeParse Lexer.GroupBy
+        orderBy :: Maybe (List Order) <- maybeParse Lexer.OrderBy
+        limit :: Maybe Limit <- maybeParse Lexer.Limit
+        offset :: Maybe Offset <- maybeParse Lexer.Offset
         tokens' <- get
         case tokens' of
           (Lexer.EOF : Nil) -> do
-            pure $ combine selectors statement condition index orders
+            pure $ combine select from where_ groupBy orderBy limit offset
           (Lexer.Parenthesis Lexer.Close : q') -> do
             put q'
-            pure $ combine selectors statement condition index orders
+            pure $ combine select from where_ groupBy orderBy limit offset
           _ ->
             lift $ Left "parsing error: invalid end of input"
 
       (Lexer.Parenthesis Lexer.Open : q) -> do
         put q
-        statement :: Statement <- parse
-        pure statement
+        select :: Statement <- parse
+        pure select
 
       (h : _) ->
         lift $ Left $ "parsing error: unexpected token: " <> show h
@@ -378,7 +441,7 @@ instance parseStatement :: Parse Statement where
 
 -- INSTANCE SHOW
 instance showStatement :: Show Statement where
-  show (Select projections statement condition orders) =
+  show (Select projections statement condition orders limit offset) =
     let
         projections' = "SELECT " <> (intercalate ", " (map show projections))
         statement' = maybe "" (\x -> " FROM (" <> (show x) <> ")") statement
@@ -387,10 +450,12 @@ instance showStatement :: Show Statement where
           if length orders == 0
             then ""
             else " ORDER BY " <> (intercalate ", " (map show orders))
+        limit' = maybe "" (\x -> " LIMIT " <> show x ) limit
+        offset' = maybe "" (\x -> " OFFSET " <> show x ) offset
     in
-        projections' <> statement' <> condition' <> orders'
+        projections' <> statement' <> condition' <> orders' <> limit' <> offset'
 
-  show (Group index aggregations statement condition orders) =
+  show (Group index aggregations statement condition orders limit offset) =
     let
         aggregations' = "SELECT " <> (intercalate ", " (map show aggregations))
         statement' = maybe "" (\x -> " FROM (" <> (show x) <> ")") statement
@@ -400,8 +465,10 @@ instance showStatement :: Show Statement where
           if length orders == 0
             then ""
             else " ORDER BY " <> (intercalate ", " (map show orders))
+        limit' = maybe "" (\x -> " LIMIT " <> show x ) limit
+        offset' = maybe "" (\x -> " OFFSET " <> show x ) offset
     in
-        aggregations' <> statement' <> condition' <> index' <> orders'
+        aggregations' <> statement' <> condition' <> index' <> orders' <> limit' <> offset'
 
 
 instance showProjection :: Show Projection where
@@ -466,6 +533,16 @@ instance showOrder :: Show Order where
     (show x) <> " ASC"
   show (OrderDesc x) =
     (show x) <> " DESC"
+
+
+instance showLimit :: Show Limit where
+  show (Limit i) =
+    show i
+
+
+instance showOffset :: Show Offset where
+  show (Offset i) =
+    show i
 
 
 instance showIndex :: Show Index where
