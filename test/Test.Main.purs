@@ -29,6 +29,13 @@ ingest query = do
   ast :: P.Statement <- evalStateT P.parse tokens
   M.ingest ast
 
+tokenize :: Int -> String  -> Either String (List L.Token)
+tokenize pos str = do
+  xs <- (evalStateT L.tokenize { pos, str })
+  pure $ map (\{ token } -> token) xs
+
+
+
 
 main :: Eff (avar :: AVAR, console :: CONSOLE, testOutput :: TESTOUTPUT) Unit
 main = runTest do
@@ -41,11 +48,10 @@ main = runTest do
   suite "lexer" do
     test "Nil" do
       Assert.equal
-        (Right $ fromFoldable [L.EOF])
-        (evalStateT L.tokenize
-          { pos: 0
-          , str: ""
-          })
+        (Right $ fromFoldable
+          [ L.EOF
+          ])
+        (tokenize 0 "")
 
     test "[0] SELECT patate" do
       Assert.equal
@@ -54,10 +60,7 @@ main = runTest do
           , L.Word "patate"
           , L.EOF
           ])
-        (evalStateT L.tokenize
-          { pos: 0
-          , str: "SELECT patate"
-          })
+          (tokenize 0 "SELECT patate")
 
     test "[0] SELECT (patate)" do
       Assert.equal
@@ -68,10 +71,7 @@ main = runTest do
           , L.Parenthesis L.Close
           , L.EOF
           ])
-        (evalStateT L.tokenize
-          { pos: 0
-          , str: "SELECT (patate)"
-          })
+        (tokenize 0 "SELECT (patate)")
 
     test "[0] patate     GROUP BY patate" do
       Assert.equal
@@ -81,10 +81,7 @@ main = runTest do
           , L.Word "patate"
           , L.EOF
           ])
-        (evalStateT L.tokenize
-          { pos: 0
-          , str: "patate     GROUP BY patate"
-          })
+        (tokenize 0 "patate     GROUP BY patate")
 
     test "[2] - NULL patate AS alias" do
       Assert.equal
@@ -95,18 +92,12 @@ main = runTest do
           , L.Word "alias"
           , L.EOF
           ])
-        (evalStateT L.tokenize
-          { pos: 2
-          , str: "- NULL patate AS alias"
-          })
+          (tokenize 2 "- NULL patate AS alias")
 
     test "[0] WHERE ? = patate" do
       Assert.equal
         (Left "invalid token '?' at position 6")
-        (evalStateT L.tokenize
-          { pos: 0
-          , str: "WHERE ? = patate"
-          })
+        (tokenize 0 "WHERE ? = patate")
 
     test "[0] FROM AVG(patate) > 14 OR .42 != 1.14" do
       Assert.equal
@@ -124,10 +115,7 @@ main = runTest do
           , L.Number (fromNumber 1.14)
           , L.EOF
           ])
-        (evalStateT L.tokenize
-          { pos: 0
-          , str: "FROM AVG(patate) > 14 OR .42 != 1.14"
-          })
+          (tokenize 0 "FROM AVG(patate) > 14 OR .42 != 1.14")
 
     test "[0] WHERE patate = NULL" do
       Assert.equal
@@ -138,10 +126,7 @@ main = runTest do
           , L.Keyword L.Null
           , L.EOF
           ])
-        (evalStateT L.tokenize
-          { pos: 0
-          , str: "WHERE patate = NULL"
-          })
+          (tokenize 0 "WHERE patate = NULL")
 
     test "[0] SELECT patate ORDER BY autruche" do
       Assert.equal
@@ -152,10 +137,7 @@ main = runTest do
           , L.Word "autruche"
           , L.EOF
           ])
-        (evalStateT L.tokenize
-          { pos: 0
-          , str: "SELECT patate ORDER BY autruche"
-          })
+          (tokenize 0 "SELECT patate ORDER BY autruche")
 
     test "[0] patate LIMIT 14" do
       Assert.equal
@@ -165,10 +147,7 @@ main = runTest do
           , L.Number (fromInt 14)
           , L.EOF
           ])
-        (evalStateT L.tokenize
-          { pos: 0
-          , str: "patate LIMIT 14"
-          })
+          (tokenize 0 "patate LIMIT 14")
 
     test "[0] patate OFFSET 1.4" do
       Assert.equal
@@ -178,10 +157,7 @@ main = runTest do
           , L.Number (fromNumber 1.4)
           , L.EOF
           ])
-        (evalStateT L.tokenize
-          { pos: 0
-          , str: "patate OFFSET 1.4"
-          })
+          (tokenize 0 "patate OFFSET 1.4")
 
     test "[0] NOT(patate)" do
       Assert.equal
@@ -192,10 +168,7 @@ main = runTest do
           , L.Parenthesis L.Close
           , L.EOF
           ])
-        (evalStateT L.tokenize
-          { pos: 0
-          , str: "NOT (patate)"
-          })
+          (tokenize 0 "NOT (patate)")
 
   --  ____
   -- |  _ \ __ _ _ __ ___  ___ _ __
@@ -217,9 +190,9 @@ main = runTest do
           Nothing
         )
         (evalStateT P.parse (fromFoldable
-          [ L.Keyword L.Select
-          , L.Word "patate"
-          , L.EOF
+          [ { token: L.Keyword L.Select, pos: 0 }
+          , { token: L.Word "patate", pos: 1 }
+          , { token: L.EOF, pos: 2 }
           ]))
 
     test "SELECT patate AS autruche" do
@@ -235,11 +208,11 @@ main = runTest do
           Nothing
         )
         (evalStateT P.parse (fromFoldable
-          [ L.Keyword L.Select
-          , L.Word "patate"
-          , L.Keyword L.As
-          , L.Word "autruche"
-          , L.EOF
+          [ { token: L.Keyword L.Select, pos: 0 }
+          , { token: L.Word "patate", pos: 1 }
+          , { token: L.Keyword L.As, pos: 2 }
+          , { token: L.Word "autruche", pos: 3 }
+          , { token: L.EOF, pos: 4 }
           ]))
 
     test "SELECT (patate), autruche" do
@@ -256,13 +229,13 @@ main = runTest do
           Nothing
         )
         (evalStateT P.parse (fromFoldable
-          [ L.Keyword L.Select
-          , L.Parenthesis L.Open
-          , L.Word "patate"
-          , L.Parenthesis L.Close
-          , L.Comma
-          , L.Word "autruche"
-          , L.EOF
+          [ { token: L.Keyword L.Select, pos: 0 }
+          , { token: L.Parenthesis L.Open, pos: 1 }
+          , { token: L.Word "patate", pos: 2 }
+          , { token: L.Parenthesis L.Close, pos: 3 }
+          , { token: L.Comma, pos: 4 }
+          , { token: L.Word "autruche", pos: 5 }
+          , { token: L.EOF, pos: 6 }
           ]))
 
     test "SELECT patate WHERE autruche > 14" do
@@ -280,13 +253,13 @@ main = runTest do
           Nothing
         )
         (evalStateT P.parse (fromFoldable
-          [ L.Keyword L.Select
-          , L.Word "patate"
-          , L.Keyword L.Where
-          , L.Word "autruche"
-          , L.Binary L.Gt
-          , L.Number (fromInt 14)
-          , L.EOF
+          [ { token: L.Keyword L.Select, pos: 0 }
+          , { token: L.Word "patate", pos: 1 }
+          , { token: L.Keyword L.Where, pos: 2 }
+          , { token: L.Word "autruche", pos: 3 }
+          , { token: L.Binary L.Gt, pos: 4 }
+          , { token: L.Number (fromInt 14), pos: 5 }
+          , { token: L.EOF, pos: 6 }
           ]))
 
     test "SELECT patate FROM (SELECT autruche)" do
@@ -311,14 +284,14 @@ main = runTest do
           Nothing
         )
         (evalStateT P.parse (fromFoldable
-          [ L.Keyword L.Select
-          , L.Word "patate"
-          , L.Keyword L.From
-          , L.Parenthesis L.Open
-          , L.Keyword L.Select
-          , L.Word "autruche"
-          , L.Parenthesis L.Close
-          , L.EOF
+          [ { token: L.Keyword L.Select, pos: 0 }
+          , { token: L.Word "patate", pos: 1 }
+          , { token: L.Keyword L.From, pos: 2 }
+          , { token: L.Parenthesis L.Open, pos: 3 }
+          , { token: L.Keyword L.Select, pos: 4 }
+          , { token: L.Word "autruche", pos: 5 }
+          , { token: L.Parenthesis L.Close, pos: 6 }
+          , { token: L.EOF, pos: 7 }
           ]))
 
     test "SELECT patate GROUP BY NULL" do
@@ -335,36 +308,36 @@ main = runTest do
           Nothing
         )
         (evalStateT P.parse (fromFoldable
-          [ L.Keyword L.Select
-          , L.Word "patate"
-          , L.Keyword L.GroupBy
-          , L.Keyword L.Null
-          , L.EOF
+          [ { token: L.Keyword L.Select, pos: 0 }
+          , { token: L.Word "patate", pos: 1 }
+          , { token: L.Keyword L.GroupBy, pos: 2 }
+          , { token: L.Keyword L.Null, pos: 3 }
+          , { token: L.EOF, pos: 4 }
           ]))
 
     test "SELECT patate GROUP BY NULL (no EOF)" do
       Assert.equal
-        (Left "parsing error: invalid end of input" :: Either String P.Statement)
+        (Left "unexpected end of input" :: Either String P.Statement)
         (evalStateT P.parse (fromFoldable
-          [ L.Keyword L.Select
-          , L.Word "patate"
-          , L.Keyword L.GroupBy
-          , L.Keyword L.Null
+          [ { token: L.Keyword L.Select, pos: 0 }
+          , { token: L.Word "patate", pos: 1 }
+          , { token: L.Keyword L.GroupBy, pos: 2 }
+          , { token: L.Keyword L.Null, pos: 3 }
           ]))
 
     test "SELECT patate GROUP BY NULL WHERE 14.0 > 42.0" do
       Assert.equal
-        (Left "parsing error: invalid end of input" :: Either String P.Statement)
+        (Left "unexpected end of input" :: Either String P.Statement)
         (evalStateT P.parse (fromFoldable
-          [ L.Keyword L.Select
-          , L.Word "patate"
-          , L.Keyword L.GroupBy
-          , L.Keyword L.Null
-          , L.Keyword L.Where
-          , L.Number (fromNumber 14.0)
-          , L.Binary L.Gt
-          , L.Number (fromNumber 42.0)
-          , L.EOF
+          [ { token: L.Keyword L.Select, pos: 0 }
+          , { token: L.Word "patate", pos: 1 }
+          , { token: L.Keyword L.GroupBy, pos: 2 }
+          , { token: L.Keyword L.Null, pos: 3 }
+          , { token: L.Keyword L.Where, pos: 4 }
+          , { token: L.Number (fromNumber 14.0), pos: 5 }
+          , { token: L.Binary L.Gt, pos: 6 }
+          , { token: L.Number (fromNumber 42.0), pos: 7 }
+          , { token: L.EOF, pos: 8 }
           ]))
 
     test "SELECT patate WHERE 14.0 = 42.0 GROUP BY autruche" do
@@ -383,15 +356,15 @@ main = runTest do
           Nothing
         )
         (evalStateT P.parse (fromFoldable
-          [ L.Keyword L.Select
-          , L.Word "patate"
-          , L.Keyword L.Where
-          , L.Number (fromNumber 14.0)
-          , L.Binary L.Eq
-          , L.Number (fromNumber 42.0)
-          , L.Keyword L.GroupBy
-          , L.Word "autruche"
-          , L.EOF
+          [ { token: L.Keyword L.Select, pos: 0 }
+          , { token: L.Word "patate", pos: 1 }
+          , { token: L.Keyword L.Where, pos: 2 }
+          , { token: L.Number (fromNumber 14.0), pos: 3 }
+          , { token: L.Binary L.Eq, pos: 4 }
+          , { token: L.Number (fromNumber 42.0), pos: 5 }
+          , { token: L.Keyword L.GroupBy, pos: 6 }
+          , { token: L.Word "autruche", pos: 7 }
+          , { token: L.EOF, pos: 8 }
           ]))
 
     test "SELECT AVG(patate), COUNT(things) AS c WHERE autruche != \"banana\"" do
@@ -410,61 +383,61 @@ main = runTest do
           Nothing
         )
         (evalStateT P.parse (fromFoldable
-          [ L.Keyword L.Select
-          , L.Function L.Avg
-          , L.Parenthesis L.Open
-          , L.Word "patate"
-          , L.Parenthesis L.Close
-          , L.Comma
-          , L.Function L.Count
-          , L.Parenthesis L.Open
-          , L.Word "things"
-          , L.Parenthesis L.Close
-          , L.Keyword L.As
-          , L.Word "c"
-          , L.Keyword L.Where
-          , L.Word "autruche"
-          , L.Binary L.Neq
-          , L.String "banana"
-          , L.EOF
+          [ { token: L.Keyword L.Select, pos: 0 }
+          , { token: L.Function L.Avg, pos: 1 }
+          , { token: L.Parenthesis L.Open, pos: 2 }
+          , { token: L.Word "patate", pos: 3 }
+          , { token: L.Parenthesis L.Close, pos: 4 }
+          , { token: L.Comma, pos: 5 }
+          , { token: L.Function L.Count, pos: 6 }
+          , { token: L.Parenthesis L.Open, pos: 7 }
+          , { token: L.Word "things", pos: 8 }
+          , { token: L.Parenthesis L.Close, pos: 9 }
+          , { token: L.Keyword L.As, pos: 10 }
+          , { token: L.Word "c", pos: 11 }
+          , { token: L.Keyword L.Where, pos: 12 }
+          , { token: L.Word "autruche", pos: 13 }
+          , { token: L.Binary L.Neq, pos: 14 }
+          , { token: L.String "banana", pos: 15 }
+          , { token: L.EOF, pos: 16 }
           ]))
 
     test "SELECT (patate, autruche" do
       Assert.equal
-        (Left "parsing error: unbalanced parenthesis expression" :: Either String P.Statement)
+        (Left "unbalanced parenthesis expression: expected `)` but got: EOF at position 5" :: Either String P.Statement)
         (evalStateT P.parse (fromFoldable
-          [ L.Keyword L.Select
-          , L.Parenthesis L.Open
-          , L.Word "patate"
-          , L.Comma
-          , L.Word "autruche"
-          , L.EOF
+          [ { token: L.Keyword L.Select, pos: 0 }
+          , { token: L.Parenthesis L.Open, pos: 1 }
+          , { token: L.Word "patate", pos: 2 }
+          , { token: L.Comma, pos: 3 }
+          , { token: L.Word "autruche", pos: 4 }
+          , { token: L.EOF, pos: 5 }
           ]))
 
     test "SELECT AVG(14)" do
       Assert.equal
-        (Left "parsing error: unexpected token: 14" :: Either String P.Statement)
+        (Left "unexpected token: 14 at position 3" :: Either String P.Statement)
         (evalStateT P.parse (fromFoldable
-          [ L.Keyword L.Select
-          , L.Function L.Avg
-          , L.Parenthesis L.Open
-          , L.Number $ fromInt 14
-          , L.Parenthesis L.Close
-          , L.EOF
+          [ { token: L.Keyword L.Select, pos: 0 }
+          , { token: L.Function L.Avg, pos: 1 }
+          , { token: L.Parenthesis L.Open, pos: 2 }
+          , { token: L.Number $ fromInt 14, pos: 3 }
+          , { token: L.Parenthesis L.Close, pos: 4 }
+          , { token: L.EOF, pos: 4 }
           ]))
 
     test "SELECT AVG(patate, autruche)" do
       Assert.equal
-        (Left "parsing error: invalid argument(s) for function AVG" :: Either String P.Statement)
+        (Left "AVG has an invalid argument at position 2" :: Either String P.Statement)
         (evalStateT P.parse (fromFoldable
-          [ L.Keyword L.Select
-          , L.Function L.Avg
-          , L.Parenthesis L.Open
-          , L.Word "patate"
-          , L.Comma
-          , L.Word "autruche"
-          , L.Parenthesis L.Close
-          , L.EOF
+          [ { token: L.Keyword L.Select, pos: 0 }
+          , { token: L.Function L.Avg, pos: 1 }
+          , { token: L.Parenthesis L.Open, pos: 2 }
+          , { token: L.Word "patate", pos: 3 }
+          , { token: L.Comma, pos: 4 }
+          , { token: L.Word "autruche", pos: 5 }
+          , { token: L.Parenthesis L.Close, pos: 6 }
+          , { token: L.EOF, pos: 7 }
           ]))
 
     test "SELECT (((((patate)))))" do
@@ -480,19 +453,19 @@ main = runTest do
           Nothing
         )
         (evalStateT P.parse (fromFoldable
-          [ L.Keyword L.Select
-          , L.Parenthesis L.Open
-          , L.Parenthesis L.Open
-          , L.Parenthesis L.Open
-          , L.Parenthesis L.Open
-          , L.Parenthesis L.Open
-          , L.Word "patate"
-          , L.Parenthesis L.Close
-          , L.Parenthesis L.Close
-          , L.Parenthesis L.Close
-          , L.Parenthesis L.Close
-          , L.Parenthesis L.Close
-          , L.EOF
+          [ { token: L.Keyword L.Select, pos: 0 }
+          , { token: L.Parenthesis L.Open, pos: 1 }
+          , { token: L.Parenthesis L.Open, pos: 2 }
+          , { token: L.Parenthesis L.Open, pos: 3 }
+          , { token: L.Parenthesis L.Open, pos: 4 }
+          , { token: L.Parenthesis L.Open, pos: 5 }
+          , { token: L.Word "patate", pos: 6 }
+          , { token: L.Parenthesis L.Close, pos: 7 }
+          , { token: L.Parenthesis L.Close, pos: 8 }
+          , { token: L.Parenthesis L.Close, pos: 9 }
+          , { token: L.Parenthesis L.Close, pos: 10 }
+          , { token: L.Parenthesis L.Close, pos: 11 }
+          , { token: L.EOF, pos: 12 }
           ]))
 
     test "SELECT patate WHERE patate = NULL" do
@@ -510,13 +483,13 @@ main = runTest do
           Nothing
         )
         (evalStateT P.parse (fromFoldable
-          [ L.Keyword L.Select
-          , L.Word "patate"
-          , L.Keyword L.Where
-          , L.Word "patate"
-          , L.Binary L.Eq
-          , L.Keyword L.Null
-          , L.EOF
+          [ { token: L.Keyword L.Select, pos: 0 }
+          , { token: L.Word "patate", pos: 1 }
+          , { token: L.Keyword L.Where, pos: 2 }
+          , { token: L.Word "patate", pos: 3 }
+          , { token: L.Binary L.Eq, pos: 4 }
+          , { token: L.Keyword L.Null, pos: 5 }
+          , { token: L.EOF, pos: 6 }
           ]))
 
     test "SELECT patate ORDER BY autruche" do
@@ -532,11 +505,11 @@ main = runTest do
           Nothing
         )
         (evalStateT P.parse (fromFoldable
-          [ L.Keyword L.Select
-          , L.Word "patate"
-          , L.Keyword L.OrderBy
-          , L.Word "autruche"
-          , L.EOF
+          [ { token: L.Keyword L.Select, pos: 0 }
+          , { token: L.Word "patate", pos: 1 }
+          , { token: L.Keyword L.OrderBy, pos: 2 }
+          , { token: L.Word "autruche", pos: 3 }
+          , { token: L.EOF, pos: 4 }
           ]))
 
     test "SELECT patate ORDER BY autruche ASC" do
@@ -552,12 +525,12 @@ main = runTest do
           Nothing
         )
         (evalStateT P.parse (fromFoldable
-          [ L.Keyword L.Select
-          , L.Word "patate"
-          , L.Keyword L.OrderBy
-          , L.Word "autruche"
-          , L.Keyword L.Asc
-          , L.EOF
+          [ { token: L.Keyword L.Select, pos: 0 }
+          , { token: L.Word "patate", pos: 1 }
+          , { token: L.Keyword L.OrderBy, pos: 2 }
+          , { token: L.Word "autruche", pos: 3 }
+          , { token: L.Keyword L.Asc, pos: 4 }
+          , { token: L.EOF, pos: 5 }
           ]))
 
     test "SELECT patate ORDER BY autruche ASC, patate DESC" do
@@ -573,26 +546,26 @@ main = runTest do
           Nothing
         )
         (evalStateT P.parse (fromFoldable
-          [ L.Keyword L.Select
-          , L.Word "patate"
-          , L.Keyword L.OrderBy
-          , L.Word "autruche"
-          , L.Keyword L.Asc
-          , L.Comma
-          , L.Word "patate"
-          , L.Keyword L.Desc
-          , L.EOF
+          [ { token: L.Keyword L.Select, pos: 0 }
+          , { token: L.Word "patate", pos: 1 }
+          , { token: L.Keyword L.OrderBy, pos: 2 }
+          , { token: L.Word "autruche", pos: 3 }
+          , { token: L.Keyword L.Asc, pos: 4 }
+          , { token: L.Comma, pos: 5 }
+          , { token: L.Word "patate", pos: 6 }
+          , { token: L.Keyword L.Desc, pos: 7 }
+          , { token: L.EOF, pos: 8 }
           ]))
 
     test "SELECT patate ORDER BY NULL" do
       Assert.equal
-        (Left "parsing error: unexpected token: NULL" :: Either String P.Statement)
+        (Left "unexpected token: NULL at position 3" :: Either String P.Statement)
         (evalStateT P.parse (fromFoldable
-          [ L.Keyword L.Select
-          , L.Word "patate"
-          , L.Keyword L.OrderBy
-          , L.Keyword L.Null
-          , L.EOF
+          [ { token: L.Keyword L.Select, pos: 0 }
+          , { token: L.Word "patate", pos: 1 }
+          , { token: L.Keyword L.OrderBy, pos: 2 }
+          , { token: L.Keyword L.Null, pos: 3 }
+          , { token: L.EOF, pos: 4 }
           ]))
 
     test "SELECT patate LIMIT 14 OFFSET 42" do
@@ -608,24 +581,24 @@ main = runTest do
           (Just $ P.Offset 42)
         )
         (evalStateT P.parse (fromFoldable
-          [ L.Keyword L.Select
-          , L.Word "patate"
-          , L.Keyword L.Limit
-          , L.Number (fromInt 14)
-          , L.Keyword L.Offset
-          , L.Number (fromInt 42)
-          , L.EOF
+          [ { token: L.Keyword L.Select, pos: 0 }
+          , { token: L.Word "patate", pos: 1 }
+          , { token: L.Keyword L.Limit, pos: 2 }
+          , { token: L.Number (fromInt 14), pos: 3 }
+          , { token: L.Keyword L.Offset, pos: 4 }
+          , { token: L.Number (fromInt 42), pos: 5 }
+          , { token: L.EOF, pos: 6 }
           ]))
 
     test "SELECT patate LIMIT 14.42" do
       Assert.equal
-        (Left "parsing error: limit must be an integer" :: Either String P.Statement)
+        (Left "LIMIT must be an integer at position 3" :: Either String P.Statement)
         (evalStateT P.parse (fromFoldable
-          [ L.Keyword L.Select
-          , L.Word "patate"
-          , L.Keyword L.Limit
-          , L.Number (fromNumber 14.42)
-          , L.EOF
+          [ { token: L.Keyword L.Select, pos: 0 }
+          , { token: L.Word "patate", pos: 1 }
+          , { token: L.Keyword L.Limit, pos: 2 }
+          , { token: L.Number (fromNumber 14.42), pos: 3 }
+          , { token: L.EOF, pos: 4 }
           ]))
 
     test "SELECT patate WHERE NOT age > 12" do
@@ -645,14 +618,14 @@ main = runTest do
           Nothing
         )
         (evalStateT P.parse (fromFoldable
-          [ L.Keyword L.Select
-          , L.Word "patate"
-          , L.Keyword L.Where
-          , L.Unary L.Not
-          , L.Word "age"
-          , L.Binary L.Gt
-          , L.Number $ fromInt 12
-          , L.EOF
+          [ { token: L.Keyword L.Select, pos: 0 }
+          , { token: L.Word "patate", pos: 1 }
+          , { token: L.Keyword L.Where, pos: 2 }
+          , { token: L.Unary L.Not, pos: 3 }
+          , { token: L.Word "age", pos: 4 }
+          , { token: L.Binary L.Gt, pos: 5 }
+          , { token: L.Number $ fromInt 12, pos: 6 }
+          , { token: L.EOF, pos: 7 }
           ]))
 
   --  ____       _

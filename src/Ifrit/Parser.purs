@@ -1,6 +1,7 @@
 module Ifrit.Parser
   (class Parse
   , Parser
+  , Error(..)
   , Aggregation(..)
   , Condition(..)
   , Factor(..)
@@ -19,6 +20,7 @@ module Ifrit.Parser
 import Prelude
 
 import Control.Monad.State(StateT, get, lift, put)
+import Control.Alt((<|>))
 import Data.Decimal(Decimal, toString)
 import Data.Int(fromString)
 import Data.Either(Either(..))
@@ -28,7 +30,8 @@ import Data.Maybe(Maybe(..), maybe)
 import Ifrit.Lexer as Lexer
 
 
-type Parser expr = StateT (List Lexer.Token) (Either String) expr
+-- TYPES & CLASSES
+type Parser expr = StateT (List { pos :: Int, token :: Lexer.Token }) (Either String) expr
 
 
 class Parse expr where
@@ -120,105 +123,133 @@ data Index
 derive instance eqIndex :: Eq Index
 
 
+-- ERRORS
+data Error
+  = ErrParenthesis (List { pos :: Int, token :: Lexer.Token })
+  | ErrUnexpectedTokens (List { pos :: Int, token :: Lexer.Token })
+  | ErrNotInteger Int Lexer.Keyword
+  | ErrInvalidArgument Int Lexer.Funktion
+  | ErrEOF
+
+
+instance showError :: Show Error where
+  show err =
+    case err of
+      ErrParenthesis ({ token, pos } : _) ->
+        "unbalanced parenthesis expression: expected `)` but got: "
+          <> show token <> " at position " <> show pos
+
+      ErrParenthesis Nil ->
+        "unbalanced parenthesis expression: expected `)` but got end of input"
+
+      ErrUnexpectedTokens ({ token, pos } : _) ->
+        "unexpected token: " <> show token <> " at position " <> show pos
+
+      ErrUnexpectedTokens Nil ->
+        "unexpected end of expression"
+
+      ErrNotInteger pos k ->
+        show k <> " must be an integer at position " <> show pos
+
+      ErrInvalidArgument pos f ->
+        show f <> " has an invalid argument at position " <> show pos
+
+      ErrEOF ->
+        "unexpected end of input"
+
 
 -- INSTANCE PARSE
 instance parseIndex :: Parse Index where
   parse = do
     tokens <- get
     case tokens of
-      (Lexer.Word s : q) -> do
+      ({ token: Lexer.Word s, pos: _ } : q) -> do
         put q
         pure $ IdxField s
 
-      (Lexer.Keyword Lexer.Null : q) -> do
+      ({ token: Lexer.Keyword Lexer.Null, pos: _ } : q) -> do
         put q
         pure $ IdxNull
 
-      (Lexer.Parenthesis Lexer.Open : q) -> do
+      ({ token: Lexer.Parenthesis Lexer.Open, pos: _ } : q) -> do
         put q
         index :: Index <- parse
         tokens' <- get
         case tokens' of
-          (Lexer.Parenthesis Lexer.Close : q') -> do
+          ({ token: Lexer.Parenthesis Lexer.Close, pos: _ } : q') -> do
             put q'
             pure $ index
-          _ ->
-            lift $ Left "parsing error: unbalanced parenthesis expression"
+          q' ->
+            lift $ Left $ show $ ErrParenthesis q'
 
-      (h : _) ->
-        lift $ Left $ "parsing error: unexpected token: " <> show h
-
-      Nil ->
-      lift $ Left "parsing error: incomplete expression"
+      q ->
+        lift $ Left $ show $ ErrUnexpectedTokens q
 
 
 instance parseOperand :: Parse Operand where
   parse = do
     tokens <- get
     case tokens of
-      (Lexer.String s : q) -> do
+      ({ token: Lexer.String s , pos: _ }: q) -> do
         put q
         pure $ String s
 
-      (Lexer.Boolean b : q) -> do
+      ({ token: Lexer.Boolean b , pos: _ }: q) -> do
         put q
         pure $ Boolean b
 
-      (Lexer.Number n : q) -> do
+      ({ token: Lexer.Number n , pos: _ }: q) -> do
         put q
         pure $ Number n
 
-      (Lexer.Keyword Lexer.Null : q) -> do
+      ({ token: Lexer.Keyword Lexer.Null , pos: _ }: q) -> do
         put q
         pure $ Null
 
-      (Lexer.Word s : q) -> do
+      ({ token: Lexer.Word s , pos: _ }: q) -> do
         put q
         pure $ Field s
 
-      (Lexer.Parenthesis Lexer.Open : q) -> do
+      ({ token: Lexer.Parenthesis Lexer.Open , pos: _ }: q) -> do
         put q
         operand :: Operand <- parse
         tokens' <- get
         case tokens' of
-          (Lexer.Parenthesis Lexer.Close : q') -> do
+          ({ token: Lexer.Parenthesis Lexer.Close , pos: _ }: q') -> do
             put q'
             pure $ operand
-          _ ->
-            lift $ Left "parsing error: unbalanced parenthesis expression"
+          q' ->
+            lift $ Left $ show $ ErrParenthesis q'
 
-      (h : _) ->
-        lift $ Left $ "parsing error: unexpected token: " <> show h
-
-      Nil ->
-        lift $ Left "parsing error: incomplete expression"
+      q ->
+        lift $ Left $ show $ ErrUnexpectedTokens q
 
 
 instance parseFactor :: Parse Factor where
   parse = do
     tokens <- get
     case tokens of
-      (Lexer.Unary op : q) -> do
+      ({ token: Lexer.Unary op, pos: _ } : q) -> do
         put q
         condition :: Condition <- parse
         pure $ Unary op condition
 
-      (Lexer.Parenthesis Lexer.Open : q) -> do
+      ({ token: Lexer.Parenthesis Lexer.Open, pos: _ } : q) -> do
         put q
         condition :: Condition <- parse
         tokens' <- get
         case tokens' of
-          (Lexer.Parenthesis Lexer.Close : q') -> do
+          ({ token: Lexer.Parenthesis Lexer.Close, pos: _ } : q') -> do
             put q'
             pure $ Condition condition
-          _ ->
-            lift $ Left "parsing error: unbalanced parenthesis expression"
+          q' ->
+            lift $ Left $ show $ ErrParenthesis q'
 
       _ -> do
         left :: Operand <- parse
         tokens' <- get
         case tokens' of
-          (Lexer.Binary op : q) -> do
+          ({ token: Lexer.Binary op, pos: _ } : q) -> do
             put q
             right :: Operand <- parse
             pure $ Binary op left right
@@ -232,7 +263,7 @@ instance parseTerm :: Parse Term where
     left :: Factor <- parse
     tokens <- get
     case tokens of
-      (Lexer.Keyword Lexer.And : q) -> do
+      ({ token: Lexer.Keyword Lexer.And, pos: _ } : q) -> do
         put q
         right :: Factor <- parse
         pure $ And left right
@@ -246,7 +277,7 @@ instance parseCondition :: Parse Condition where
     left :: Term <- parse
     tokens <- get
     case tokens of
-      (Lexer.Keyword Lexer.Or : q) -> do
+      ({ token: Lexer.Keyword Lexer.Or, pos: _ } : q) -> do
         put q
         right :: Term <- parse
         pure $ Or left right
@@ -259,143 +290,152 @@ instance parseOrder :: Parse Order where
   parse = do
     tokens <- get
     case tokens of
-      (Lexer.Word s : Lexer.Keyword Lexer.Asc : q) -> do
+      ({ token: Lexer.Word s, pos: _ } : { token: Lexer.Keyword Lexer.Asc, pos: _ }: q) -> do
         put q
         pure $ OrderAsc s
 
-      (Lexer.Word s : Lexer.Keyword Lexer.Desc : q) -> do
+      ({ token: Lexer.Word s, pos: _ } : { token: Lexer.Keyword Lexer.Desc, pos: _ }: q) -> do
         put q
         pure $ OrderDesc s
 
-      (Lexer.Word s : q) -> do
+      ({ token: Lexer.Word s, pos: _ } : q) -> do
         put q
         pure $ OrderAsc s
 
-      (Lexer.Parenthesis Lexer.Open : q) -> do
+      ({ token: Lexer.Parenthesis Lexer.Open, pos: _ }: q) -> do
         put q
         order :: Order <- parse
         tokens' <- get
         case tokens' of
-          (Lexer.Parenthesis Lexer.Close : q') -> do
+          ({ token: Lexer.Parenthesis Lexer.Close, pos: _ }: q') -> do
             put q'
             pure $ order
-          _ ->
-            lift $ Left "parsing error: unbalanced parenthesis expression"
 
-      (h : _) ->
-        lift $ Left $ "parsing error: unexpected token: " <> show h
+          q' ->
+            lift $ Left $ show $ ErrParenthesis q'
 
-      Nil ->
-        lift $ Left "parsing error: incomplete expression"
+      q ->
+        lift $ Left $ show $ ErrUnexpectedTokens q
 
 
 instance parseLimit :: Parse Limit where
   parse = do
     tokens <- get
     case tokens of
-      (Lexer.Number n : q) -> do
+      ({ token: Lexer.Number n, pos } : q) -> do
         case fromString $ toString $ n of
           Just i -> do
             put q
             pure $ Limit i
           Nothing ->
-            lift $ Left "parsing error: limit must be an integer"
-
-      (h : _) ->
-        lift $ Left $ "parsing error: unexpected token: " <> show h
-
-      Nil ->
-        lift $ Left "parsing error: incomplete expression"
+            lift $ Left $ show $ ErrNotInteger pos Lexer.Limit
+      q ->
+        lift $ Left $ show $ ErrUnexpectedTokens q
 
 
 instance parseOffset :: Parse Offset where
   parse = do
     tokens <- get
     case tokens of
-      (Lexer.Number n : q) -> do
+      ({ token: Lexer.Number n, pos } : q) -> do
         case fromString $ toString $ n of
           Just i -> do
             put q
             pure $ Offset i
           Nothing ->
-            lift $ Left "parsing error: offset must be an integer"
-
-      (h : _) ->
-        lift $ Left $ "parsing error: unexpected token: " <> show h
-
-      Nil ->
-        lift $ Left "parsing error: incomplete expression"
+            lift $ Left $ show $ ErrNotInteger pos Lexer.Offset
+      q ->
+        lift $ Left $ show $ ErrUnexpectedTokens q
 
 
 instance parseSelector :: Parse Selector where
   parse = do
     tokens <- get
     case tokens of
-      (Lexer.Word w : Lexer.Keyword Lexer.As : Lexer.Word as : q) -> do
+      ({ token: Lexer.Word w, pos: _ } : { token: Lexer.Keyword Lexer.As, pos: _ } : { token: Lexer.Word as , pos: _ }: q) -> do
         put q
         pure $ Selector w (Just as)
 
-      (Lexer.Word w : q) -> do
+      ({ token: Lexer.Word w , pos: _ }: q) -> do
         put q
         pure $ Selector w Nothing
 
-      (Lexer.Function f : Lexer.Parenthesis Lexer.Open : q) -> do
+      ({ token: Lexer.Function f, pos: _ } : { token: Lexer.Parenthesis Lexer.Open , pos } : q) -> do
         put q
         selectors :: List Selector <- parse
         case selectors of
           (Selector w Nothing : Nil) -> do
             tokens' <- get
             case tokens' of
-              (Lexer.Parenthesis Lexer.Close : Lexer.Keyword Lexer.As : Lexer.Word as : q') -> do
+              ({ token: Lexer.Parenthesis Lexer.Close, pos: _ } : { token: Lexer.Keyword Lexer.As, pos: _ } : { token: Lexer.Word as , pos: _ }: q') -> do
                 put q'
                 pure $ Function f w (Just as)
 
-              (Lexer.Parenthesis Lexer.Close : q') -> do
+              ({ token: Lexer.Parenthesis Lexer.Close , pos: _ }: q') -> do
                 put q'
                 pure $ Function f w Nothing
 
-              _ ->
-                lift $ Left $ "parsing error: unbalanced parenthesis expression"
-          _ ->
-            lift $ Left $ "parsing error: invalid argument(s) for function " <> show f
+              q' ->
+                lift $ Left $ show $ ErrParenthesis q'
 
-      (Lexer.Parenthesis Lexer.Open : q) -> do
+          _ ->
+            lift $ Left $ show $ ErrInvalidArgument pos f
+
+      ({ token: Lexer.Parenthesis Lexer.Open , pos: _ }: q) -> do
         put q
         selector :: Selector <- parse
         tokens' <- get
         case tokens' of
-          (Lexer.Parenthesis Lexer.Close : q') -> do
+          ({ token: Lexer.Parenthesis Lexer.Close , pos: _ }: q') -> do
             put q'
             pure $ selector
 
-          _ ->
-            lift $ Left $ "parsing error: unbalanced parenthesis expression"
+          q' ->
+            lift $ Left $ show $ ErrParenthesis q'
 
-      (h : _) -> do
-        lift $ Left $ "parsing error: unexpected token: " <> show h
-
-      Nil -> do
-        lift $ Left  "parsing error: empty expression"
+      q ->
+        lift $ Left $ show $ ErrUnexpectedTokens q
 
 
 instance parseList :: Parse a => Parse (List a) where
   parse = do
-    order :: a <- parse
     tokens <- get
     case tokens of
-      (Lexer.Comma : q) -> do
+      ({ token: Lexer.Parenthesis Lexer.Open , pos: _ } : q) -> do
         put q
-        orders :: List a <- parse
-        pure $ order : orders
+        xs :: List a <- parse
+        tokens' <- get
+        case tokens' of
+          ({ token: Lexer.Parenthesis Lexer.Close, pos: _ } : { token: Lexer.Comma, pos: _ } : q') -> do
+            put q'
+            xs' :: List a <- parse
+            pure $ xs <|> xs'
+
+          ({ token: Lexer.Parenthesis Lexer.Close , pos: _ } : q') -> do
+            put q'
+            pure $ xs
+
+          q' ->
+            lift $ Left $ show $ ErrParenthesis q'
+
       _ -> do
-        pure $ order : Nil
+        x :: a <- parse
+        tokens' <- get
+        case tokens' of
+          ({ token: Lexer.Comma, pos: _ } : q) -> do
+            put q
+            xs :: List a <- parse
+            pure $ x : xs
+
+          _ -> do
+            pure $ x : Nil
 
 
 maybeParse :: forall a. Parse a => Lexer.Keyword -> Parser (Maybe a)
 maybeParse key = do
   tokens <- get
   case tokens of
-    (Lexer.Keyword key' : q') | key' == key -> do
+    ({ token : Lexer.Keyword key', pos: _ } : q') | key' == key -> do
       put q'
       res <- parse
       pure $ Just res
@@ -427,10 +467,7 @@ instance parseStatement :: Parse Statement where
   parse = do
     tokens <- get
     case tokens of
-      Nil ->
-        lift $ Left "parsing error (SELECT): incomplete expression"
-
-      (Lexer.Keyword Lexer.Select : q) -> do
+      ({ token: Lexer.Keyword Lexer.Select, pos: _ } : q) -> do
         put q
         select :: List Selector <- parse
         from :: Maybe Statement <- maybeParse Lexer.From
@@ -441,22 +478,21 @@ instance parseStatement :: Parse Statement where
         offset :: Maybe Offset <- maybeParse Lexer.Offset
         tokens' <- get
         case tokens' of
-          (Lexer.EOF : Nil) -> do
+          ({ token: Lexer.EOF, pos: _ } : Nil) -> do
             pure $ combine select from where_ groupBy orderBy limit offset
-          (Lexer.Parenthesis Lexer.Close : q') -> do
+          ({ token: Lexer.Parenthesis Lexer.Close, pos: _ } : q') -> do
             put q'
             pure $ combine select from where_ groupBy orderBy limit offset
           _ ->
-            lift $ Left "parsing error: invalid end of input"
+            lift $ Left $ show $ ErrEOF
 
-      (Lexer.Parenthesis Lexer.Open : q) -> do
+      ({ token: Lexer.Parenthesis Lexer.Open, pos: _ } : q) -> do
         put q
         select :: Statement <- parse
         pure select
 
-      (h : _) ->
-        lift $ Left $ "parsing error: unexpected token: " <> show h
-
+      q ->
+        lift $ Left $ show $ ErrUnexpectedTokens q
 
 
 -- INSTANCE SHOW

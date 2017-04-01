@@ -27,6 +27,9 @@ import Text.Parsing.StringParser.String(regex)
 
 
 -- TYPES
+type Lexer = StateT { pos :: Int, str :: String } (Either String) (List { pos:: Int, token:: Token })
+
+
 data Keyword
   = And
   | As
@@ -94,8 +97,15 @@ data Token
 derive instance eqToken :: Eq Token
 
 
-type Lexer = StateT { pos :: Int, str :: String } (Either String) (List Token)
+-- ERRORS
+data Error
+  = ErrInvalidToken String Int
 
+instance showError :: Show Error where
+  show err =
+    case err of
+      ErrInvalidToken str pos ->
+        "invalid token " <> maybe "" show (charAt pos str) <> " at position " <> show pos
 
 
 -- UTILS
@@ -241,14 +251,14 @@ tokenize :: Lexer
 tokenize = do
   { pos, str } <- get
   case unParser parser { pos, str } of
-    Right { result: result, suffix } -> do
+    Right { result: token, suffix } -> do
       put suffix
       tokens <- tokenize
-      pure $ (result : tokens)
+      pure $ { pos, token } : tokens
     Left { error: ParseError "no match" } -> do
       if pos == length str
-        then pure $ EOF : Nil
-        else lift $ Left ("invalid token " <> maybe "" show (charAt pos str) <> " at position " <> show pos)
+         then pure $ { pos, token: EOF } : Nil
+        else lift $ Left $ show $ ErrInvalidToken str pos
     Left { error: ParseError err } ->
       lift $ Left err
 

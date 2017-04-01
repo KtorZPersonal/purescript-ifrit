@@ -45,6 +45,7 @@ fromJson :: Json -> Either String Schema
 fromJson =
   decodeJson
 
+
 analyze :: Schema -> Parser.Statement -> Either String Schema
 analyze schema (Parser.Select projections statement condition orders limit offset) = do
   schema' <- maybe (Right schema) (analyze schema) statement
@@ -91,7 +92,6 @@ analyzeOrder schema order =
               Left $ "unexisting field: '" <> key <> "'"
         _ ->
           Left "invalid operation: can't ORDER BY on non object"
-
 
 
 analyzeCondition :: Schema -> Parser.Condition -> Either String Schema
