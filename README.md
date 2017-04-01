@@ -161,7 +161,7 @@ and objects can be declared by nesting primitive types in JSON arrays `[]` or ob
 type        | support
 --------    | --------
 projection  | `SELECT, AS, FROM`
-grouping    | `GROUP BY, DISTINCT`
+grouping    | `GROUP BY
 filtering   | `WHERE, LIMIT, OFFSET`
 sorting     | `ORDER BY, DESC, ASC`
 operators   | `AND, OR, NOT, =, !=, >, <`
@@ -177,7 +177,6 @@ SUM      | number
 > ⚠ Ifrit relies on a strict order of clauses ⚠
 >  
 > - (1) `SELECT`
-> - (2) `DISTINCT`
 > - (3) `FROM`
 > - (4) `WHERE`
 > - (5) `GROUP BY`
