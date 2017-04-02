@@ -76,4 +76,4 @@ dist/*
 !dist/index.js
 doc/
 src/Main.purs
-
+releases/*

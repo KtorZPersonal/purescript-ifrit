@@ -1,19 +1,28 @@
 {
   "name": "purescript-ifrit",
+  "version": "0.9.0",
   "authors": [
     "KtorZ <matthias.benkort@gmail.com>"
   ],
   "description": "A NoSQL-like request transpiler for data aggregation",
   "main": "",
-  "license": "MPL 2.0",
+  "license": "MPL-2.0",
   "homepage": "https://ktorz.github.io/ifrit",
   "ignore": [
     "**/.*",
     "node_modules",
     "bower_components",
     "test",
-    "tests"
+    "tests",
+    "dist",
+    "examples",
+    "releases",
+    "package.json"
   ],
+  "repository": {
+    "type": "git",
+    "url": "git://github.com/KtorZ/purescript-ifrit.git"
+  },
   "dependencies": {
     "purescript-argonaut-codecs": "2.0.0",
     "purescript-argonaut-core": "2.0.1",

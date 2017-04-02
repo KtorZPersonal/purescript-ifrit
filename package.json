@@ -1,15 +1,21 @@
 {
   "name": "ifrit",
-  "version": "1.0.0",
+  "version": "0.9.0",
   "description": "An SQL to NoSQL compiler for data aggregation ",
   "main": "dist/index.js",
   "scripts": {
-    "doc": "jsdoc dist/index.js -t node_modules/minami -d doc",
-    "build-psc": "pulp build -O -j 4 --skip-entry-point --main 'Ifrit.Core' --src-path src/Ifrit --to dist/bundle.js",
-    "build-export": "echo 'module.exports = PS;' >> dist/bundle.js",
-    "build-minify": "google-closure-compiler-js dist/bundle.js > dist/bundle.min.js && rm dist/bundle.js",
-    "build": "npm run build-psc && npm run build-export && npm run build-minify",
-    "benchmark": "node test/benchmark"
+    "build:psc": "pulp build -O -j 4 --skip-entry-point --main 'Ifrit.Core' --src-path src/Ifrit --to dist/bundle.js",
+    "build:export": "echo 'module.exports = PS;' >> dist/bundle.js",
+    "build:minify": "google-closure-compiler-js dist/bundle.js > dist/bundle.min.js && rm dist/bundle.js",
+    "build": "npm run build:psc && npm run build:export && npm run build:minify",
+    "before:test": "mongorestore examples/dump",
+    "test": "for example in $(find examples/ -type f -name *.js); do node $example || exit 1; done",
+    "test:benchmark": "node test/benchmark",
+
+    "before:release": "mkdir -p releases/github releases/gh-pages",
+    "release:gh-pages": "jsdoc dist/index.js -t node_modules/minami -d releases/gh-pages",
+    "release:github": "cp -r LICENSE src dist bower.json package.json releases/github",
+    "release": "npm run release:gh-pages && npm run release:github"
   },
   "repository": {
     "type": "git",

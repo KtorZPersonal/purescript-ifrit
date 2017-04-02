@@ -66,7 +66,7 @@ suite
                 "name": "string",
                 "power": "number"
             }]
-        }, "SELECT AVG(power) AS avg_power FROM (SELECT AVG(spells.power), age) WHERE age > 18 GROUP BY NULL")
+        }, "SELECT AVG(spells_power) AS avg_power FROM (SELECT AVG(spells.power), age) WHERE age > 18 GROUP BY NULL")
     })
 
     .on('cycle', function(event) {

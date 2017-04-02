@@ -6,6 +6,9 @@ node_js:
   - 6
   - 7
 
+services:
+  - mongodb
+
 before_install:
   - export PATH=./node_modules/.bin:$PATH
 
@@ -15,6 +18,40 @@ install:
 
 before_script:
   - pulp build
+  - npm run before:test
 
 script:
   - pulp test
+  - npm test
+
+after_script:
+  - npm run before:release
+  - npm run release
+
+deploy:
+  - provider: releases
+    api_key:
+      secure: odlqBayb0sGvvAU3ES8OzGexdDLpxnJ/1od2RO4QFxfFJgMKlKsTiaVe+zbT4h3hZdju/Wyb0zHqj1+6MheIXWmV3IBVqxQRNa7oMSjzIv8d+OF5ITX5WTyJdGWfWQP7qgjTWr/xlbs4wfKrv1nfmbYclll9mtoVeL8HnD8HlC0YDyhv79NcgsH1Yu2Rvw4oRdRm3HQJrKpRrAK0KBrWr4SvEC2F9KQ4QAufUxd+bIeL3teMyB8MGqYdcUTo/gAr/i12GCb6iIlKpppjCBoAvnoLwTFk3BFufVhezhy4s9PHap+ObiXBc95/CNMTbR1J7ChJ6RrUZw8uVDCHWkhA9GfT6YWPkDu1x3Lhvu9mF/Fc2GNjYwncadMM+78KXGUOyMstg05ij8g+vAPlWmJ4B0Jhg9OlngLW5ed0LVtU5iz523tdDmQijBHl12zR0F4nnmVCSVtjKtRcRaBlLRBDUEW9eNKkD33aUov0PyCOpFzYQX79iRJUdDNr1uEKCIc0vQupQgmSKIxDaEciSp0mWheWus1TIt6AjO7zet7H/0YZerlRtnGcgfDiZMF8aoNgoN25bUbAZipvHiTjJPW8y8UjhDhRaMBm6eUx/uxAFOVk8xygkc6LOK0M3BzE2d8bbyipOM48O7I+UBumX+ckvYqLXclgoR/Q0PCyrDFQpE8=
+    skip_cleanup: true
+    file_glob: true
+    file: releases/github/*
+    on:
+      tags: true
+      branch: master
+
+  - provider: npm
+    api_key:
+      secure: l9LYN5i1yytPo1pGXHHs95cRBOqADtgZt8qURQU4SzVnLUOV8FDJ5ViMrUcfYN4q5h5ZkevwVTqdg/4REUj2/7fC//f28cWDVnYVma0L5k8M58V5nqfQoUYJIq3Y8sosEXU6YkIsuWTV8NVdbsjtKMl2W6xkMGYDfhCmQx5EZ65WAi/B1WhniTg7n/m936cv4gRVUdmojCISxZ8g0HHoGgdZaS1WcvvRDAtH+v8aLzM5ndf/W5QaXa5FXbM3eg5WCTop9dsYM4UU68eJei0D4AQ6jHyEGUKaM6/sycTz5f5F2JGLdPK143yyfrGpR9O7jE+rWopOnv/N6hsm63XUMWqBqPNlF1wCRLvNWVnDow+3/DPyQUDfpgxfQvn5BH9GIGZ1bmEwOGk6nPvSU3Ppmh8TTXI+U0aKA6TrhYiuK8nCcOGp0FlBtYAXeWgK1y+zp5K2WBJS+ZzjLBF3CQyMg1VZAVbLNbt0MGTpSZXH37LvJWtbHgEjeodv2gxyN+BzCRBEJPpc2NndC27VlJTVsawdA4WI5JUYa4w6K5Lo7nv5JbqVU6wpwQH/zM4U13+G+4uYem71pAyTAtmETdRmcTQiaKd+W2rGuFJRQo8fjXdYeF2y4UuL10Icl7+1DVPiRAhTTY2KOykOTjDupSF3Dc2h0Mx6ZxED1tjkejGqmrg=
+    skip_cleanup: true
+    on:
+      tags: true
+      branch: master
+
+  - provider: pages
+    api_key:
+      secure: odlqBayb0sGvvAU3ES8OzGexdDLpxnJ/1od2RO4QFxfFJgMKlKsTiaVe+zbT4h3hZdju/Wyb0zHqj1+6MheIXWmV3IBVqxQRNa7oMSjzIv8d+OF5ITX5WTyJdGWfWQP7qgjTWr/xlbs4wfKrv1nfmbYclll9mtoVeL8HnD8HlC0YDyhv79NcgsH1Yu2Rvw4oRdRm3HQJrKpRrAK0KBrWr4SvEC2F9KQ4QAufUxd+bIeL3teMyB8MGqYdcUTo/gAr/i12GCb6iIlKpppjCBoAvnoLwTFk3BFufVhezhy4s9PHap+ObiXBc95/CNMTbR1J7ChJ6RrUZw8uVDCHWkhA9GfT6YWPkDu1x3Lhvu9mF/Fc2GNjYwncadMM+78KXGUOyMstg05ij8g+vAPlWmJ4B0Jhg9OlngLW5ed0LVtU5iz523tdDmQijBHl12zR0F4nnmVCSVtjKtRcRaBlLRBDUEW9eNKkD33aUov0PyCOpFzYQX79iRJUdDNr1uEKCIc0vQupQgmSKIxDaEciSp0mWheWus1TIt6AjO7zet7H/0YZerlRtnGcgfDiZMF8aoNgoN25bUbAZipvHiTjJPW8y8UjhDhRaMBm6eUx/uxAFOVk8xygkc6LOK0M3BzE2d8bbyipOM48O7I+UBumX+ckvYqLXclgoR/Q0PCyrDFQpE8=
+    skip_cleanup: true
+    local_dir: releases/gh-pages
+    on:
+      tags: true
+      branch: master
