@@ -3,6 +3,23 @@
 Ifrit ![](https://travis-ci.org/KtorZ/purescript-ifrit.svg?style=flat-square) ![](https://img.shields.io/badge/license-MPL_2.0-blue.svg?style=flat-square) [![](https://img.shields.io/badge/doc-javascript-red.svg?style=flat-square)](https://ktorz.github.io/purescript-ifrit) [![](https://img.shields.io/badge/doc-purescript-c5c5c5.svg?style=flat-square)](https://pursuit.purescript.org/packages/purescript-ifrit)
 =========
 
+# Overview
+
+## What & Why ?
+
+Ifrit is a **compiler from SQL to NoSQL** for data aggregation. NoSQL databases are great at
+modelling structured, unstructured and polymorphic data and usually offer powerful map-reduce
+based API when it comes to data aggregation. However, it is truly challenging to leverage those
+API in a web service. 
+
+In a nutshell, Ifrit:
+
+- Offers **aggegation capabilities** to any API via a neat and well-known syntax
+- Ensures the **semantic correctness** of a request
+- **Embraces security** concerns by clearly defining the scope of each request
+- Produces an **easy-to-use output**, without any dependencies or pre-requisite setup
+- Has a **small fingerprint** on your integration and performances
+
 # Getting started
 
 ## Installation
@@ -133,25 +150,7 @@ ORDER BY details.physical.height
 LIMIT 3
 ```
 
-# Overview
-
-## What & Why ?
-
-Ifrit is a **compiler from SQL to NoSQL** for data aggregation. NoSQL databases are great at
-modelling structured, unstructured and polymorphic data and usually offer powerful map-reduce
-based API when it comes to data aggregation. However, it is truly challenging to leverage those
-API in a web service. 
-
-In a nutshell, Ifrit:
-
-- Offers **aggegation capabilities** to any API via a neat and well-known syntax
-- Ensures the **semantic correctness** of a request
-- **Embraces security** concerns by clearly defining the scope of each request
-- Produces an **easy-to-use output**, without any dependencies or pre-requisite setup
-- Has a **small fingerprint** on your integration and performances
-
-
-## How it works 
+# How it works 
 
 Ifrit builds an Abstract Syntax Tree (AST) which represents only syntactycally correct
 requests. Then, it generates a request corresponding to a specific driver. So far, MongoDB is
@@ -167,7 +166,7 @@ the only target driver available.
                                                                                        
 ```
 
-#### Example (MongoDB)
+## Example (MongoDB)
 
 **input**
 ```sql
