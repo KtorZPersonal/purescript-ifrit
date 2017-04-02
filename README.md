@@ -1,6 +1,6 @@
 ![](.github/ifrit.png)
 
-Ifrit ![](https://travis-ci.org/KtorZ/purescript-ifrit.svg?style=flat-square) ![](https://img.shields.io/badge/license-MPL_2.0-blue.svg?style=flat-square) ![](https://img.shields.io/badge/doc-javascript-red.svg?style=flat-square) ![](https://img.shields.io/badge/doc-purescript-c5c5c5.svg?style=flat-square) 
+Ifrit ![](https://travis-ci.org/KtorZ/purescript-ifrit.svg?style=flat-square) ![](https://img.shields.io/badge/license-MPL_2.0-blue.svg?style=flat-square) [![](https://img.shields.io/badge/doc-javascript-red.svg?style=flat-square)](https://ktorz.github.io/purescript-ifrit) [![](https://img.shields.io/badge/doc-purescript-c5c5c5.svg?style=flat-square)](https://pursuit.purescript.org/packages/purescript-ifrit)
 =========
 
 # Getting started
@@ -297,13 +297,54 @@ SELECT AVG(power) AS avg_pow FROM (SELECT AVG(spells.power), age) WHERE age > 18
 
 # Changelog 
 
-### yyy-mm-dd | 1.0 
+### Roadmap
 
-- TODO
+- Support for `*` joker in select
+- Augment support for binary & unary operators
+- Augment support for projections & aggregations functions
+- Support basic arithmetic in projections & aggregations
+
+### 2017-04-02 | 0.1 
+
+- Support for the following keyword:
+    - `SELECT`
+    - `FROM`
+    - `WHERE`
+    - `GROUP BY`
+    - `ORDER BY`
+    - `(ASC | DESC)`
+    - `LIMIT`
+    - `OFFSET`
+
+- Support for the following boolean operators:
+    - `AND`
+    - `OR`
+
+- Support for the following binary operators:
+    - `>`
+    - `<`
+    - `=`
+    - `!=`
+
+- Support for the following unary operators:
+    - `NOT`
+
+- Support for the following functions (projections & aggregations):
+    - `AVG`
+    - `COUNT`
+    - `MAX`
+    - `MIN`
+    - `SUM`
+
+- Support for aliases inside SELECT
+- Support for nested objects
+- Support for derived tables
 
 # Compatibility
 
-- MongoDB: ~3.4
+| Driver  | Version |
+| ------  | ------- |
+| MongoDB | ~3.4    |
 
 # Credits
 
