@@ -304,7 +304,7 @@ SELECT AVG(power) AS avg_pow FROM (SELECT AVG(spells.power), age) WHERE age > 18
 - Augment support for projections & aggregations functions
 - Support basic arithmetic in projections & aggregations
 
-### 2017-04-02 | 0.1 
+### 2017-04-02 | 0.1.0 
 
 - Support for the following keyword:
     - `SELECT`
