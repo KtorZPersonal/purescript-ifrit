@@ -178,11 +178,11 @@ ingest (Parser.Projection selector) =
       case List.fromFoldable $ split (Pattern ".") s of
         source : h : q ->
           let
-              target = List.intercalate "_" (h : q)
-              alias = defaultAlias target as
+              target = List.intercalate "." (h : q)
+              alias = defaultAlias s as
               sum = list
                 [ encodeJson "$$value"
-                , encodeJson $ "$" <> target
+                , encodeJson $ "$$this." <> target
                 ]
               reduce = object
                 [ "input" := (encodeJson $ "$" <> source)
@@ -217,15 +217,15 @@ ingest (Parser.Projection selector) =
       case List.fromFoldable $ split (Pattern ".") s of
         source : h : q ->
           let
-              target = List.intercalate "_" (h : q)
-              alias = defaultAlias target as
+              target = List.intercalate "." (h : q)
+              alias = defaultAlias s as
               or = list
                 [ singleton "$eq" (list [ encodeJson "$$value", jsonNull ])
                 , singleton "$gt" (list [ encodeJson $ "$" <> target, encodeJson "$$value" ])
                 ]
               cond = object
                 [ "if" := (singleton "$or" or)
-                , "then" := (encodeJson $ "$" <> target)
+                , "then" := (encodeJson $ "$$this." <> target)
                 , "else" := (encodeJson "$$value")
                 ]
               reduce = object
@@ -242,15 +242,15 @@ ingest (Parser.Projection selector) =
       case List.fromFoldable $ split (Pattern ".") s of
         source : h : q ->
           let
-              target = List.intercalate "_" (h : q)
-              alias = defaultAlias target as
+              target = List.intercalate "." (h : q)
+              alias = defaultAlias s as
               or = list
                 [ singleton "$eq" (list [ encodeJson "$$value", jsonNull ])
                 , singleton "$lt" (list [ encodeJson $ "$" <> target, encodeJson "$$value" ])
                 ]
               cond = object
                 [ "if" := (singleton "$or" or)
-                , "then" := (encodeJson $ "$" <> target)
+                , "then" := (encodeJson $ "$$this." <> target)
                 , "else" := (encodeJson "$$value")
                 ]
               reduce = object
@@ -267,8 +267,8 @@ ingest (Parser.Projection selector) =
       case List.fromFoldable $ split (Pattern ".") s of
         source : h : q ->
           let
-              target = List.intercalate "_" (h : q)
-              alias = defaultAlias target as
+              target = List.intercalate "." (h : q)
+              alias = defaultAlias s as
               count = list
                 [ encodeJson "$$value"
                 , encodeJson $ "$$this." <> target

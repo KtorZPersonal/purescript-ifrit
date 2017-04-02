@@ -670,7 +670,7 @@ main = runTest do
                             { "$gt": ["$power", "$$value"] }
                           ]
                         },
-                        "then": "$power",
+                        "then": "$$this.power",
                         "else": "$$value"
                       }
                     },
@@ -698,7 +698,7 @@ main = runTest do
                         "input": "$spells",
                         "initialValue": 0,
                         "in": {
-                          "$add": ["$$value", "$power"]
+                          "$add": ["$$value", "$$this.power"]
                         }
                       }
                     },
