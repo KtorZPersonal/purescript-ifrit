@@ -287,6 +287,9 @@ analyzeProjection schema acc (Parser.Projection selector) =
                 Left err ->
                   Left $ err
 
+            Right _ ->
+              Left $ show $ ErrIncompatibleFnType f schema
+
             Left err ->
               Left $ err
 
