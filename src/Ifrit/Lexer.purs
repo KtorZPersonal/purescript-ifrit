@@ -1,3 +1,5 @@
+-- | This module defines the logic to convert an SQL string to a list of tokens
+
 module Ifrit.Lexer
   ( Binary(..)
   , Funktion(..)
@@ -26,10 +28,45 @@ import Text.Parsing.StringParser(Parser, ParseError(..), unParser, fail)
 import Text.Parsing.StringParser.String(regex)
 
 
--- TYPES
+-- | Lexer materializes the progress of the tokenizer
+-- | It holds the current position and the remaining string to analyze. In exchange,
+-- | it produces a list of tokens associated with their starting position
 type Lexer = StateT { pos :: Int, str :: String } (Either String) (List { pos:: Int, token:: Token })
 
 
+-- | tokenize leads a Lexer to its final stage whenever posible
+tokenize :: Lexer
+tokenize = do
+  { pos, str } <- get
+  case unParser parser { pos, str } of
+    Right { result: token, suffix } -> do
+      put suffix
+      tokens <- tokenize
+      pure $ { pos, token } : tokens
+    Left { error: ParseError "no match" } -> do
+      if pos == length str
+         then pure $ { pos, token: EOF } : Nil
+        else lift $ Left $ show $ ErrInvalidToken str pos
+    Left { error: ParseError err } ->
+      lift $ Left err
+
+
+-- | A token value. Anything outside of these constructors is an invalid token.
+data Token
+  = Comma
+  | Function Funktion
+  | Parenthesis Parenthesis
+  | Keyword Keyword
+  | Binary Binary
+  | Unary Unary
+  | Word String
+  | Boolean Boolean
+  | String String
+  | Number Decimal
+  | EOF
+
+
+-- | A supported SQL Keywords
 data Keyword
   = And
   | As
@@ -46,16 +83,8 @@ data Keyword
   | Select
   | Where
 
-derive instance eqKeyword :: Eq Keyword
 
-
-data Parenthesis
-  = Close
-  | Open
-
-derive instance eqParenthesis :: Eq Parenthesis
-
-
+-- | A supported aggregation / projection function
 data Funktion
   = Avg
   | Count
@@ -63,9 +92,8 @@ data Funktion
   | Min
   | Sum
 
-derive instance eqFunktion :: Eq Funktion
 
-
+-- | A supported binary operator
 data Binary
   = Eq
   | Neq
@@ -74,43 +102,23 @@ data Binary
   | Lte
   | Gte
 
-derive instance eqBinary :: Eq Binary
 
-
+-- | A supported unary operator
 data Unary
   = Not
 
-derive instance eqUnary :: Eq Unary
+
+-- | A type of parenthesis, open or close
+data Parenthesis
+  = Close
+  | Open
 
 
-data Token
-  = Comma
-  | Function Funktion
-  | Parenthesis Parenthesis
-  | Keyword Keyword
-  | Binary Binary
-  | Unary Unary
-  | Word String
-  | Boolean Boolean
-  | String String
-  | Number Decimal
-  | EOF
-
-derive instance eqToken :: Eq Token
-
-
--- ERRORS
+-- | Static representation of an error
 data Error
   = ErrInvalidToken String Int
 
-instance showError :: Show Error where
-  show err =
-    case err of
-      ErrInvalidToken str pos ->
-        "invalid token " <> maybe "" show (charAt pos str) <> " at position " <> show pos
 
-
--- UTILS
 keyword :: String -> Keyword
 keyword str = unsafePartial $
   case trim str of
@@ -150,18 +158,16 @@ unquote str =
   replace (unsafeRegex "\"" global) "" str
 
 
+infixr 7 parse as </*/>
 parse :: (String -> Token) -> String -> Parser Token
 parse f s =
   f <$> regex ("\\s*" <> s <> "\\s*")
 
 
+infixr 7 parse' as </$/>
 parse' :: Token -> String -> Parser Token
 parse' t s =
   parse (\_ -> t) s
-
-
-infixr 7 parse' as </$/>
-infixr 7 parse as </*/>
 
 
 nextKeyword :: Parser Token
@@ -248,24 +254,6 @@ parser =
   <|> nextComma
 
 
--- EXPORTS
-tokenize :: Lexer
-tokenize = do
-  { pos, str } <- get
-  case unParser parser { pos, str } of
-    Right { result: token, suffix } -> do
-      put suffix
-      tokens <- tokenize
-      pure $ { pos, token } : tokens
-    Left { error: ParseError "no match" } -> do
-      if pos == length str
-         then pure $ { pos, token: EOF } : Nil
-        else lift $ Left $ show $ ErrInvalidToken str pos
-    Left { error: ParseError err } ->
-      lift $ Left err
-
-
--- INSTANCE SHOW
 instance showToken :: (Show Number, Show Keyword) => Show Token where
   show (Keyword k) =
     show k
@@ -293,24 +281,17 @@ instance showToken :: (Show Number, Show Keyword) => Show Token where
     "EOF"
 
 
-instance showBinary :: Show Binary where
-  show Eq =
-    "="
-  show Neq =
-    "!="
-  show Lt =
-    "<"
-  show Gt =
-    ">"
-  show Lte =
-    "<="
-  show Gte =
-    ">="
-
-
-instance showUnary :: Show Unary where
-  show Not =
-    "NOT"
+instance showFunktion :: Show Funktion where
+  show Avg =
+    "AVG"
+  show Count =
+    "COUNT"
+  show Max =
+    "MAX"
+  show Min =
+    "MIN"
+  show Sum =
+    "SUM"
 
 
 instance showKeyword :: Show Keyword where
@@ -344,14 +325,46 @@ instance showKeyword :: Show Keyword where
     "WHERE"
 
 
-instance showFunktion :: Show Funktion where
-  show Avg =
-    "AVG"
-  show Count =
-    "COUNT"
-  show Max =
-    "MAX"
-  show Min =
-    "MIN"
-  show Sum =
-    "SUM"
+instance showBinary :: Show Binary where
+  show Eq =
+    "="
+  show Neq =
+    "!="
+  show Lt =
+    "<"
+  show Gt =
+    ">"
+  show Lte =
+    "<="
+  show Gte =
+    ">="
+
+
+instance showUnary :: Show Unary where
+  show Not =
+    "NOT"
+
+
+instance showError :: Show Error where
+  show err =
+    case err of
+      ErrInvalidToken str pos ->
+        "invalid token " <> maybe "" show (charAt pos str) <> " at position " <> show pos
+
+
+derive instance eqToken :: Eq Token
+
+
+derive instance eqKeyword :: Eq Keyword
+
+
+derive instance eqFunktion :: Eq Funktion
+
+
+derive instance eqBinary :: Eq Binary
+
+
+derive instance eqUnary :: Eq Unary
+
+
+derive instance eqParenthesis :: Eq Parenthesis

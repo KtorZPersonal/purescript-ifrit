@@ -1,3 +1,5 @@
+-- | This module defines high-level instances to handle compilation with Ifrit
+
 module Ifrit.Core where
 
 import Prelude
@@ -6,14 +8,19 @@ import Control.Monad.State(evalStateT)
 import Data.Argonaut.Core(Json)
 import Data.Either(Either)
 
+import Ifrit.Driver.MongoDB as MongoDB
 import Ifrit.Lexer as Lexer
 import Ifrit.Parser as Parser
 import Ifrit.Semantic as Semantic
-import Ifrit.Driver.MongoDB as MongoDB
 
+
+-- | The `Compile` type class represents target NoSQL drivers.
+-- |
+-- | Each driver may have a different input and output type representation
 class Compile driver where
   compile :: Json -> String -> Either String driver
 
+-- | MongoDB driver type: compiles SQL to an aggregation pipeline as JSON
 newtype MongoDB = MongoDB Json
 
 instance showMongoDB :: Show MongoDB where

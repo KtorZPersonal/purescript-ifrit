@@ -1,3 +1,8 @@
+-- | The semantic analyzer verifies the validaity of an AST according to a given
+-- | JSON schema
+
+-- TODO Introduce a proper type-class to abstract all the different analyzeXXX functions
+
 module Ifrit.Semantic
   ( Schema(..)
   , analyze
@@ -13,8 +18,8 @@ import Data.Argonaut.Encode(class EncodeJson, encodeJson)
 import Data.Argonaut.Parser(jsonParser)
 import Data.Array(head, length)
 import Data.Either(Either(..))
-import Data.List(List(..), (:))
 import Data.List as List
+import Data.List(List(..), (:))
 import Data.Maybe(Maybe(..), maybe)
 import Data.Pair(Pair(..))
 import Data.StrMap as StrMap
@@ -27,7 +32,6 @@ import Ifrit.Parser as Parser
 import Ifrit.Lexer as Lexer
 
 
--- TYPES AND CLASSES
 data Schema
   = Object (StrMap Schema)
   | Array Schema
@@ -36,10 +40,8 @@ data Schema
   | Boolean
   | Null
 
-derive instance eqSchema :: Eq Schema
 
-
--- ERRORS
+-- | Static representation of an error
 data Error
   = ErrIncompatibleSchema Schema
   | ErrUnexistingField Lexer.Keyword String
@@ -49,32 +51,34 @@ data Error
   | ErrInvalidFieldName String
   | ErrReservedFieldName String
 
-instance showError :: Show Error where
-  show err =
-    case err of
-      ErrUnexistingField stage field ->
-        "unexisting field '" <> field <> "' in " <> show stage <> " expression"
-      ErrIncompatibleSchema schema ->
-        "incompatible object schema for operation: " <> show schema
-      ErrIncompatibleUnaryType op type_ ->
-        "incompatible type " <> show type_ <> " with unary operator " <> show op
-      ErrIncompatibleBinaryTypes op type1 type2 ->
-        "incompatible types " <> show type1 <> ", " <> show type2 <>
-          " with binary operator " <> show op
-      ErrIncompatibleFnType fn type_ ->
-        "incompatible type " <> show type_ <> " with function " <> show fn
-      ErrInvalidFieldName field ->
-        "invalid field's name '" <> field <> "'"
-      ErrReservedFieldName field ->
-        "reserved field's name '" <> field <> "'"
 
-
--- UTILS
+-- | Decode a JSON stringified representation of a schema to an actual schema.
+-- |
+-- | Look at the fromJson function for more details about the schema structure.
 fromString :: String -> Either String Schema
 fromString =
   jsonParser >=> fromJson
 
 
+-- | Decode a schema from a JSON object.
+-- |
+-- | It can only decode JSON-objects to schema, where each property is mapped to one of the
+-- | supported types: "null", "number", "string", "boolean".
+-- |
+-- | Arrays and nested objects can be represented by using their JSON equivalent. For instance:
+-- |
+-- | ```json
+-- | {
+-- |    "property": "string",
+-- |    "whatever": ["number"],
+-- |    "foo": [{
+-- |       "bar": "boolean"
+-- |    }],
+-- |    "patate": {
+-- |       "baguette": "number"
+-- |    }
+-- | }
+-- | ```
 fromJson :: Json -> Either String Schema
 fromJson =
   decodeJson
@@ -107,7 +111,8 @@ lookup stage schema key =
       Left $ show $ ErrIncompatibleSchema schema
 
 
--- ANALYZERS
+-- | Perform a semantic analysis on a statement from an input schema. The produced schema
+-- | corresponds to the schema of the generated result, after the statement has been processed.
 analyze :: Schema -> Parser.Statement -> Either String Schema
 analyze schema (Parser.Select projections statement condition orders limit offset) = do
   schema' <- maybe (Right schema) (analyze schema) statement
@@ -419,3 +424,26 @@ instance encodeJsonSchema :: EncodeJson Schema where
 
 instance showSchema :: EncodeJson Schema => Show Schema where
   show = encodeJson >>> stringify
+
+
+instance showError :: Show Error where
+  show err =
+    case err of
+      ErrUnexistingField stage field ->
+        "unexisting field '" <> field <> "' in " <> show stage <> " expression"
+      ErrIncompatibleSchema schema ->
+        "incompatible object schema for operation: " <> show schema
+      ErrIncompatibleUnaryType op type_ ->
+        "incompatible type " <> show type_ <> " with unary operator " <> show op
+      ErrIncompatibleBinaryTypes op type1 type2 ->
+        "incompatible types " <> show type1 <> ", " <> show type2 <>
+          " with binary operator " <> show op
+      ErrIncompatibleFnType fn type_ ->
+        "incompatible type " <> show type_ <> " with function " <> show fn
+      ErrInvalidFieldName field ->
+        "invalid field's name '" <> field <> "'"
+      ErrReservedFieldName field ->
+        "reserved field's name '" <> field <> "'"
+
+
+derive instance eqSchema :: Eq Schema

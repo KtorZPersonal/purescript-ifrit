@@ -1,3 +1,5 @@
+-- | This modules provides code generation for MongoDB aggregation pipeline
+
 module Ifrit.Driver.MongoDB
   ( class Ingest
   , ingest
@@ -6,45 +8,43 @@ module Ifrit.Driver.MongoDB
 import Prelude
 
 import Control.Apply(lift2)
-import Data.Argonaut.Core(Json, JAssoc, jsonEmptyObject, jsonZero, jsonNull, jsonTrue, jsonFalse)
 import Data.Argonaut.Core as Argonaut
+import Data.Argonaut.Core(Json, JAssoc, jsonEmptyObject, jsonZero, jsonNull, jsonTrue, jsonFalse)
 import Data.Argonaut.Encode(encodeJson, extend, (:=), (~>))
 import Data.Array(concat)
 import Data.Decimal(toNumber)
 import Data.Either(Either(..))
 import Data.Foldable(foldr)
-import Data.List(List, (:))
 import Data.List as List
+import Data.List(List, (:))
 import Data.Maybe(Maybe(..), maybe)
 import Data.StrMap as StrMap
 import Data.String(Pattern(..), Replacement(..), split, replaceAll)
 import Data.Tuple(Tuple(..))
 import Partial.Unsafe(unsafePartial)
 
-import Ifrit.Parser as Parser
 import Ifrit.Lexer as Lexer
+import Ifrit.Parser as Parser
 
 
--- CLASS & TYPES
+-- | The `Ingest` type class materializes types from which code can be generated.
+-- | The output may vary but is usually a JSON-related type
 class Ingest pipeline stage where
   ingest :: stage -> pipeline
 
+
+-- | The `IngestNot` type class is used to ingest clauses inside a `NOT`. MongoDB
+-- | has a singular way of representing queries and conditions which makes it particularly
+-- | hard when it comes to representing NOT(...)
 class IngestNot pipeline stage where
   ingestNot :: stage -> pipeline
 
 
--- ERRORS
+-- | Static representation of an error
 data Error
   = ErrCondition Parser.Factor
 
-instance showError :: Show Error where
-  show err =
-    case err of
-      ErrCondition factor ->
-        "invalid condition: " <> show factor <> ": should target a field of the document"
 
-
--- UTILITIES
 object :: Array (Tuple String Json) -> Json
 object = StrMap.fromFoldable >>> encodeJson
 
@@ -108,8 +108,8 @@ ingestReverseBinary op =
       "$lt"
 
 
-fromArray :: Json -> Array Json
-fromArray json = unsafePartial $
+forceArray :: Json -> Array Json
+forceArray json = unsafePartial $
   case (Argonaut.toArray json) of
     Just xs ->
       xs
@@ -124,7 +124,7 @@ maybeIngest fn =
 instance ingestStatement :: Ingest (Either String Json) Parser.Statement where
   ingest (Parser.Select projections statement condition orders limit offset) = do
     projections' :: Array Json <- (singleton "$project" >>> toArray) <$> (ingest projections)
-    statement' :: Array Json <- maybeIngest fromArray statement
+    statement' :: Array Json <- maybeIngest forceArray statement
     condition' :: Array Json <- maybeIngest (\x -> [singleton "$match" x]) condition
     orders' :: Array Json <- if List.length orders == 0
       then Right []
@@ -142,7 +142,7 @@ instance ingestStatement :: Ingest (Either String Json) Parser.Statement where
 
   ingest (Parser.Group index aggregations statement condition orders limit offset) = do
     aggregations' :: Json <- ingest aggregations
-    statement' :: Array Json <- maybeIngest fromArray statement
+    statement' :: Array Json <- maybeIngest forceArray statement
     condition' :: Array Json <- maybeIngest (\x -> [singleton "$match" x]) condition
     index' :: Json <- ingest index
     orders' :: Array Json <- if List.length orders == 0
@@ -462,3 +462,10 @@ instance ingestIndex :: Ingest (Either String Json) Parser.Index where
     pure $ encodeJson $ "$" <> s
   ingest (Parser.IdxNull) =
     pure jsonNull
+
+
+instance showError :: Show Error where
+  show err =
+    case err of
+      ErrCondition factor ->
+        "invalid condition: " <> show factor <> ": should target a field of the document"

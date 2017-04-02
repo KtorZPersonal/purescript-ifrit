@@ -1,3 +1,7 @@
+-- | This module provides logic to convert a list of tokens to an AST.
+-- |
+-- | The AST representation can then be used for semantic analysis and code generation
+
 module Ifrit.Parser
   (class Parse
   , Parser
@@ -19,74 +23,74 @@ module Ifrit.Parser
 
 import Prelude
 
-import Control.Monad.State(StateT, get, lift, put)
 import Control.Alt((<|>))
+import Control.Monad.State(StateT, get, lift, put)
 import Data.Decimal(Decimal, toString)
-import Data.Int(fromString)
 import Data.Either(Either(..))
+import Data.Int(fromString)
 import Data.List(List(..), (:), intercalate, length)
 import Data.Maybe(Maybe(..), maybe)
 
 import Ifrit.Lexer as Lexer
 
 
--- TYPES & CLASSES
+-- | A Parser type materializes the progress of the parser.
+-- | It holds a list of token associated with their respective position.
+-- | It produces an AST for the given parser
 type Parser expr = StateT (List { pos :: Int, token :: Lexer.Token }) (Either String) expr
 
 
+-- | The `Parse` type class refers to parts of the AST which can be parsed from a list of tokens
 class Parse expr where
   parse :: Parser expr
 
 
+-- | A statement refers to the highest element of the tree. So far, only read-type operations are
+-- | represented. Also, in order to simplify the code-generation and the semantic analysis,
+-- | aggregations and projections are represented as via 2 constructors although they are both
+-- | represented by a SELECT in sql.
 data Statement
   = Select (List Projection) (Maybe Statement) (Maybe Condition) (List Order) (Maybe Limit) (Maybe Offset)
   | Group Index (List Aggregation) (Maybe Statement) (Maybe Condition) (List Order) (Maybe Limit) (Maybe Offset)
 
-derive instance eqStatement :: Eq Statement
 
-
+-- | A projection, i.e. a field selected via a SELECT without any GROUP BY
 data Projection
   = Projection Selector
 
-derive instance eqProjection :: Eq Projection
 
-
+-- | An aggregation, i.e. a field selected via a SELECT + GROUP BY
 data Aggregation
   = Aggregation Selector
 
-derive instance eqAggregation :: Eq Aggregation
 
-
+-- | A selector, i.e a field or function selected via a SELECT
 data Selector
   = Selector String (Maybe String)
   | Function Lexer.Funktion String (Maybe String)
 
-derive instance eqSelector :: Eq Selector
 
-
+-- | A boolean condition associated with a WHERE clause
 data Condition
   = Term Term
   | Or Term Term
 
-derive instance eqCondition :: Eq Condition
 
-
+-- | A term of a boolean condition
 data Term
   = Factor Factor
   | And Factor Factor
 
-derive instance eqTerm :: Eq Term
 
-
+-- | A factor of a term condition
 data Factor
   = Operand Operand
   | Condition Condition
   | Unary Lexer.Unary Factor
   | Binary Lexer.Binary Operand Operand
 
-derive instance eqFactor :: Eq Factor
 
-
+-- | An operand of an operator
 data Operand
   = String String
   | Boolean Boolean
@@ -94,36 +98,30 @@ data Operand
   | Field String
   | Null
 
-derive instance eqOperand :: Eq Operand
 
-
+-- | An ordering field, associated to an ORDER BY clause
 data Order
   = OrderAsc String
   | OrderDesc String
 
-derive instance eqOrder :: Eq Order
 
-
+-- | A limit, associated to a LIMIT clause
 data Limit
   = Limit Int
 
-derive instance eqLimit :: Eq Limit
 
-
+-- | An offset, associated to an OFFSET clause
 data Offset
   = Offset Int
 
-derive instance eqOffset :: Eq Offset
 
-
+-- | An index, associated to a GROUP BY clause
 data Index
   = IdxField String
   | IdxNull
 
-derive instance eqIndex :: Eq Index
 
-
--- ERRORS
+-- | Static representation of an error
 data Error
   = ErrParenthesis (List { pos :: Int, token :: Lexer.Token })
   | ErrUnexpectedTokens (List { pos :: Int, token :: Lexer.Token })
@@ -132,33 +130,40 @@ data Error
   | ErrEOF
 
 
-instance showError :: Show Error where
-  show err =
-    case err of
-      ErrParenthesis ({ token, pos } : _) ->
-        "unbalanced parenthesis expression: expected `)` but got: "
-          <> show token <> " at position " <> show pos
-
-      ErrParenthesis Nil ->
-        "unbalanced parenthesis expression: expected `)` but got end of input"
-
-      ErrUnexpectedTokens ({ token, pos } : _) ->
-        "unexpected token: " <> show token <> " at position " <> show pos
-
-      ErrUnexpectedTokens Nil ->
-        "unexpected end of expression"
-
-      ErrNotInteger pos k ->
-        show k <> " must be an integer at position " <> show pos
-
-      ErrInvalidArgument pos f ->
-        show f <> " has an invalid argument at position " <> show pos
-
-      ErrEOF ->
-        "unexpected end of input"
+-- Parse the next clause if the given keyword is encountered, does nothing otherwise
+maybeParse :: forall a. Parse a => Lexer.Keyword -> Parser (Maybe a)
+maybeParse key = do
+  tokens <- get
+  case tokens of
+    ({ token : Lexer.Keyword key', pos: _ } : q') | key' == key -> do
+      put q'
+      res <- parse
+      pure $ Just res
+    _ ->
+      pure $ Nothing
 
 
--- INSTANCE PARSE
+-- Small helper to combine all different clause into a statement
+combine
+  :: List Selector
+  -> Maybe Statement
+  -> Maybe Condition
+  -> Maybe Index
+  -> Maybe (List Order)
+  -> Maybe Limit
+  -> Maybe Offset
+  -> Statement
+combine selectors statement condition index orders limit offset =
+  let
+      orders' = maybe Nil (\xs -> xs) orders
+  in
+      case index of
+        Nothing ->
+          Select (map Projection selectors) statement condition orders' limit offset
+        Just index' ->
+          Group index' (map Aggregation selectors) statement condition orders' limit offset
+
+
 instance parseIndex :: Parse Index where
   parse = do
     tokens <- get
@@ -431,38 +436,6 @@ instance parseList :: Parse a => Parse (List a) where
             pure $ x : Nil
 
 
-maybeParse :: forall a. Parse a => Lexer.Keyword -> Parser (Maybe a)
-maybeParse key = do
-  tokens <- get
-  case tokens of
-    ({ token : Lexer.Keyword key', pos: _ } : q') | key' == key -> do
-      put q'
-      res <- parse
-      pure $ Just res
-    _ ->
-      pure $ Nothing
-
-
-combine
-  :: List Selector
-  -> Maybe Statement
-  -> Maybe Condition
-  -> Maybe Index
-  -> Maybe (List Order)
-  -> Maybe Limit
-  -> Maybe Offset
-  -> Statement
-combine selectors statement condition index orders limit offset =
-  let
-      orders' = maybe Nil (\xs -> xs) orders
-  in
-      case index of
-        Nothing ->
-          Select (map Projection selectors) statement condition orders' limit offset
-        Just index' ->
-          Group index' (map Aggregation selectors) statement condition orders' limit offset
-
-
 instance parseStatement :: Parse Statement where
   parse = do
     tokens <- get
@@ -495,7 +468,6 @@ instance parseStatement :: Parse Statement where
         lift $ Left $ show $ ErrUnexpectedTokens q
 
 
--- INSTANCE SHOW
 instance showStatement :: Show Statement where
   show (Select projections statement condition orders limit offset) =
     let
@@ -608,3 +580,65 @@ instance showIndex :: Show Index where
     x
   show (IdxNull) =
     "NULL"
+
+
+instance showError :: Show Error where
+  show err =
+    case err of
+      ErrParenthesis ({ token, pos } : _) ->
+        "unbalanced parenthesis expression: expected `)` but got: "
+          <> show token <> " at position " <> show pos
+
+      ErrParenthesis Nil ->
+        "unbalanced parenthesis expression: expected `)` but got end of input"
+
+      ErrUnexpectedTokens ({ token, pos } : _) ->
+        "unexpected token: " <> show token <> " at position " <> show pos
+
+      ErrUnexpectedTokens Nil ->
+        "unexpected end of expression"
+
+      ErrNotInteger pos k ->
+        show k <> " must be an integer at position " <> show pos
+
+      ErrInvalidArgument pos f ->
+        show f <> " has an invalid argument at position " <> show pos
+
+      ErrEOF ->
+        "unexpected end of input"
+
+
+derive instance eqStatement :: Eq Statement
+
+
+derive instance eqProjection :: Eq Projection
+
+
+derive instance eqAggregation :: Eq Aggregation
+
+
+derive instance eqSelector :: Eq Selector
+
+
+derive instance eqCondition :: Eq Condition
+
+
+derive instance eqTerm :: Eq Term
+
+
+derive instance eqFactor :: Eq Factor
+
+
+derive instance eqOperand :: Eq Operand
+
+
+derive instance eqOrder :: Eq Order
+
+
+derive instance eqLimit :: Eq Limit
+
+
+derive instance eqOffset :: Eq Offset
+
+
+derive instance eqIndex :: Eq Index
