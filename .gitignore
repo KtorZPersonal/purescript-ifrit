@@ -72,8 +72,6 @@ output
 
 # End of https://www.gitignore.io/api/node,purescript
 
-dist/*
-!dist/index.js
 doc/
 src/Main.purs
 releases/*

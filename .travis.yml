@@ -50,7 +50,7 @@ deploy:
       branch: master
 
   - provider: pages
-    api_key: $GITHUB_TOKEN
+    github_token: $GITHUB_TOKEN
     skip_cleanup: true
     local_dir: releases/gh-pages
     on:
