@@ -13,11 +13,11 @@ import Data.Array(concat)
 import Data.Decimal(toNumber)
 import Data.Either(Either(..))
 import Data.Foldable(foldr)
-import Data.List(List)
+import Data.List(List, (:))
 import Data.List as List
 import Data.Maybe(Maybe(..), maybe)
 import Data.StrMap as StrMap
-import Data.String(Pattern(..), split)
+import Data.String(Pattern(..), Replacement(..), split, replaceAll)
 import Data.Tuple(Tuple(..))
 import Partial.Unsafe(unsafePartial)
 
@@ -64,7 +64,10 @@ list = List.fromFoldable >>> encodeJson
 
 defaultAlias :: String -> Maybe String -> String
 defaultAlias default =
-  maybe default (\x -> x)
+    maybe (sanitize default) (\x -> x)
+  where
+    sanitize :: String -> String
+    sanitize = replaceAll (Pattern ".") (Replacement "_")
 
 
 extendM :: Either String JAssoc -> Either String Json -> Either String Json
@@ -172,9 +175,10 @@ ingest (Parser.Projection selector) =
       Right $ defaultAlias s as := ("$" <> s)
 
     Parser.Function Lexer.Avg s as ->
-      case split (Pattern ".") s of
-        [source, target] ->
+      case List.fromFoldable $ split (Pattern ".") s of
+        source : h : q ->
           let
+              target = List.intercalate "_" (h : q)
               alias = defaultAlias target as
               sum = list
                 [ encodeJson "$$value"
@@ -210,9 +214,10 @@ ingest (Parser.Projection selector) =
           Right $ alias := singleton "$reduce" reduce
 
     Parser.Function Lexer.Max s as ->
-      case split (Pattern ".") s of
-        [source, target] ->
+      case List.fromFoldable $ split (Pattern ".") s of
+        source : h : q ->
           let
+              target = List.intercalate "_" (h : q)
               alias = defaultAlias target as
               or = list
                 [ singleton "$eq" (list [ encodeJson "$$value", jsonNull ])
@@ -234,9 +239,10 @@ ingest (Parser.Projection selector) =
           Right $ defaultAlias s as := singleton "$max" (encodeJson $ "$" <> s)
 
     Parser.Function Lexer.Min s as ->
-      case split (Pattern ".") s of
-        [source, target] ->
+      case List.fromFoldable $ split (Pattern ".") s of
+        source : h : q ->
           let
+              target = List.intercalate "_" (h : q)
               alias = defaultAlias target as
               or = list
                 [ singleton "$eq" (list [ encodeJson "$$value", jsonNull ])
@@ -258,9 +264,10 @@ ingest (Parser.Projection selector) =
           Right $ defaultAlias s as := singleton "$min" (encodeJson $ "$" <> s)
 
     Parser.Function Lexer.Sum s as ->
-      case split (Pattern ".") s of
-        [source, target] ->
+      case List.fromFoldable $ split (Pattern ".") s of
+        source : h : q ->
           let
+              target = List.intercalate "_" (h : q)
               alias = defaultAlias target as
               count = list
                 [ encodeJson "$$value"

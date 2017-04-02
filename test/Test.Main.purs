@@ -1263,26 +1263,26 @@ main = runTest do
             "_id": "number"
           }
           """)
-          (do
-            schema <- S.fromString
-              """
-              {
-                "age": "number",
-                "name": "string"
-              }
-              """
-            S.analyze schema (P.Group
-                (P.IdxField "age")
-                (fromFoldable
-                  [ P.Aggregation $ P.Function L.Count "name" Nothing
-                  ])
-                Nothing
-                Nothing
-                Nil
-                Nothing
-                Nothing
-              )
+        (do
+          schema <- S.fromString
+            """
+            {
+              "age": "number",
+              "name": "string"
+            }
+            """
+          S.analyze schema (P.Group
+              (P.IdxField "age")
+              (fromFoldable
+                [ P.Aggregation $ P.Function L.Count "name" Nothing
+                ])
+              Nothing
+              Nothing
+              Nil
+              Nothing
+              Nothing
             )
+          )
 
     test "SELECT COUNT(spells)" do
       Assert.equal
@@ -1292,24 +1292,159 @@ main = runTest do
             "spells": "number"
           }
           """)
-          (do
-            schema <- S.fromString
-              """
-              {
+        (do
+          schema <- S.fromString
+            """
+            {
+              "spells": [{
+                "name": "string",
+                "power": "number"
+              }]
+            }
+            """
+          S.analyze schema (P.Select
+              (fromFoldable
+                [ P.Projection $ P.Function L.Count "spells" Nothing
+                ])
+              Nothing
+              Nothing
+              Nil
+              Nothing
+              Nothing
+            )
+          )
+
+    test "SELECT MIN(details.biographical.age) ..." do
+      Assert.equal
+        (S.fromString
+          """
+          {
+            "_id": "null",
+            "details_biographical_age": "number"
+          }
+          """)
+        (do
+          schema <- S.fromString
+            """
+            {
+                "details": {
+                    "biographical": {
+                        "age": "number",
+                        "class": "string"
+                    },
+                    "physical": {
+                        "gender": "string",
+                        "height": "number"
+                    }
+                }
+            }
+            """
+          S.analyze schema (P.Group
+              P.IdxNull
+              (fromFoldable
+                [ P.Aggregation $ P.Function L.Min "details.biographical.age" Nothing
+                ])
+              Nothing
+              (Just $ P.Term $ P.Factor $ P.Binary
+                L.Eq (P.Field "details.physical.gender") (P.String "female")
+              )
+              Nil
+              Nothing
+              Nothing
+            )
+        )
+
+    test "SELECT details.biographical.class" do
+      Assert.equal
+        (S.fromString
+          """
+          {
+            "details_biographical_class": "string"
+          }
+          """)
+        (do
+          schema <- S.fromString
+            """
+            {
+                "details": {
+                    "biographical": {
+                        "age": "number",
+                        "class": "string"
+                    }
+                }
+            }
+            """
+          S.analyze schema (P.Select
+              (fromFoldable
+                [ P.Projection $ P.Selector "details.biographical.class" Nothing
+                ])
+              Nothing
+              Nothing
+              Nil
+              Nothing
+              Nothing
+            )
+        )
+
+    test "SELECT MAX(spells.power)" do
+      Assert.equal
+        (S.fromString
+          """
+          {
+            "spells_power": "number"
+          }
+          """)
+        (do
+          schema <- S.fromString
+            """
+            {
                 "spells": [{
                   "name": "string",
                   "power": "number"
                 }]
-              }
-              """
-            S.analyze schema (P.Select
-                (fromFoldable
-                  [ P.Projection $ P.Function L.Count "spells" Nothing
-                  ])
-                Nothing
-                Nothing
-                Nil
-                Nothing
-                Nothing
-              )
+            }
+            """
+          S.analyze schema (P.Select
+              (fromFoldable
+                [ P.Projection $ P.Function L.Max "spells.power" Nothing
+                ])
+              Nothing
+              Nothing
+              Nil
+              Nothing
+              Nothing
             )
+        )
+
+    test "SELECT MAX(spells.power.super)" do
+      Assert.equal
+        (S.fromString
+          """
+          {
+            "spells_power_super": "number"
+          }
+          """)
+        (do
+          schema <- S.fromString
+            """
+            {
+                "spells": [{
+                  "name": "string",
+                  "power": {
+                    "normal": "number",
+                    "super": "number"
+                  }
+                }]
+            }
+            """
+          S.analyze schema (P.Select
+              (fromFoldable
+                [ P.Projection $ P.Function L.Max "spells.power.super" Nothing
+                ])
+              Nothing
+              Nothing
+              Nil
+              Nothing
+              Nothing
+            )
+        )

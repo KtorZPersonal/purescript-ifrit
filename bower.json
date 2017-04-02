@@ -17,6 +17,7 @@
   "dependencies": {
     "purescript-argonaut-codecs": "2.0.0",
     "purescript-argonaut-core": "2.0.1",
+    "purescript-control": "2.0.0",
     "purescript-either": "2.1.0",
     "purescript-foldable-traversable": "2.2.0",
     "purescript-lists": "3.4.0",
