@@ -1,6 +1,6 @@
 {
   "name": "ifrit",
-  "version": "0.9.0",
+  "version": "0.1.0",
   "description": "An SQL to NoSQL compiler for data aggregation ",
   "main": "dist/index.js",
   "scripts": {
