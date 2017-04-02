@@ -172,8 +172,8 @@ analyzeFactor schema factor =
     Parser.Condition c ->
       analyzeCondition schema c
 
-    Parser.Unary op o -> do
-      s <- analyzeCondition schema o
+    Parser.Unary op c -> do
+      s <- analyzeFactor schema c
       case s of
         Boolean ->
           Right Boolean

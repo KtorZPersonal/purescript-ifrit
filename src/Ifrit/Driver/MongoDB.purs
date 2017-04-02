@@ -80,7 +80,7 @@ ingestBinary op =
     Lexer.Eq ->
       "$eq"
     Lexer.Neq ->
-      "$neq"
+      "$ne"
     Lexer.Lt ->
       "$lt"
     Lexer.Gt ->
@@ -97,7 +97,7 @@ ingestReverseBinary op =
     Lexer.Eq ->
       "$eq"
     Lexer.Neq ->
-      "$neq"
+      "$ne"
     Lexer.Lt ->
       "$gte"
     Lexer.Gt ->

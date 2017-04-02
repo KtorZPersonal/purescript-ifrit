@@ -81,7 +81,7 @@ derive instance eqTerm :: Eq Term
 data Factor
   = Operand Operand
   | Condition Condition
-  | Unary Lexer.Unary Condition
+  | Unary Lexer.Unary Factor
   | Binary Lexer.Binary Operand Operand
 
 derive instance eqFactor :: Eq Factor
@@ -231,8 +231,8 @@ instance parseFactor :: Parse Factor where
     case tokens of
       ({ token: Lexer.Unary op, pos: _ } : q) -> do
         put q
-        condition :: Condition <- parse
-        pure $ Unary op condition
+        factor :: Factor <- parse
+        pure $ Unary op factor
 
       ({ token: Lexer.Parenthesis Lexer.Open, pos: _ } : q) -> do
         put q

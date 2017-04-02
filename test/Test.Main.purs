@@ -609,7 +609,7 @@ main = runTest do
             ])
           Nothing
           (Just $ P.Term $ P.Factor $ P.Unary
-            L.Not (P.Term $ P.Factor $ P.Binary
+            L.Not (P.Binary
               L.Gt (P.Field "age") (P.Number $ fromInt 12)
             )
           )
@@ -950,7 +950,7 @@ main = runTest do
               "$match": {
                 "$or": [
                   { "patate": { "$lte": 12 } },
-                  { "patate": { "$neq": 14 } }
+                  { "patate": { "$ne": 14 } }
                 ]
               }
             },
