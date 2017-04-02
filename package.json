@@ -33,6 +33,7 @@
     "google-closure-compiler-js": "^20170218.0.0",
     "jsdoc": "^3.4.3",
     "minami": "^1.1.1",
+    "mongodb": "^2.2.25",
     "pulp": "^10.0.4",
     "purescript": "^0.10.7"
   },

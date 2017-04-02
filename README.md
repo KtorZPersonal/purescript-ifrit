@@ -14,38 +14,32 @@ npm install ifrit
 ## Usage
 
 ```js
-const Ifrit = require("ifrit")
+const Ifrit = require("../dist")
 const mongodb = require("mongodb")
+const schema = require("./schema.json")
 
-// Define a schema for the collection
-const schema = {
-    "amount": "number",
-    "account": {
-        "country": "string",
-        "currency": "string"
-    },
-    "items": [{
-        "price": "number",
-        "description": "string"
-    }],
-    "created_at": "datetime"
-}
+/*
+ * Names and classes of the first two good guys, ordered by age
+ */
+const query = `
+    SELECT name, details.biographical.class AS class, details.biographical.age AS age
+    WHERE NOT(bad_guy) AND details.physical.gender = "male"
+    ORDER BY details.biographical.age
+    LIMIT 2
+`
 
-// Define / Retrieve an aggregation query
-const query = `SELECT AVG(items.price) WHERE account.country = "NL" AND amount > 250`
-
-// Aggregate results from Mongodb
 mongodb.MongoClient
-    .connect("mongodb://localhost:27017")
+    .connect("mongodb://localhost:27017/ifrit")
     .then((db) => {
         return db
-            .collection("transactions")
+            .collection("mages")
             .aggregate(Ifrit.compile.mongodb(schema, query))
+            .toArray()
     })
     .then(console.log)
     .catch(console.err)
-```
 
+```
 
 ## Documentation
 
@@ -59,8 +53,85 @@ documentation for PureScript is published on
 Different scenarios are available on the repository in the `examples` folder. Here's a
 summary of all examples:
 
-- TODO
+#### schema
 
+[schema](examples/schema.json)
+
+```json
+{
+    "name": "string",
+    "bad_guy": "boolean",
+    "details": {
+        "biographical": {
+            "age": "number",
+            "class": "string"
+        },
+        "physical": {
+            "gender": "string",
+            "height": "number"
+        }
+    },
+    "spells": [{
+        "name": "string",
+        "power": "number"
+    }]
+}
+```
+
+#### Bad guys' names
+
+[example 001](examples/001.js)
+
+```sql
+SELECT name
+WHERE bad_guy = true
+```
+
+#### Minimal age of female mages
+
+[example 002](examples/002.js)
+
+```sql
+SELECT name, MIN(details.biographical.age) AS min_age
+WHERE details.physical.gender = "female"
+GROUP BY NULL
+```
+
+#### Average power for mages under 170cm, by class
+
+[example 003](examples/003.js)
+
+```sql
+SELECT AVG(spells_power) AS power
+FROM (
+    SELECT AVG(spells.power), details.biographical.class AS class
+    WHERE details.physical.height < 170
+)
+GROUP BY class
+```
+
+#### Names and classes of the first two good guys, ordered by age
+
+[example 004](examples/004.js)
+
+```sql
+SELECT name, details.biographical.class AS class, details.biographical.age AS age
+WHERE NOT(bad_guy) AND details.physical.gender = "male"
+ORDER BY details.biographical.age
+LIMIT 2
+```
+
+#### Names and average size of the first three females order by height
+
+[example 005](examples/005.js)
+
+```sql
+SELECT name, AVG(details.physical.height)
+WHERE details.physical.gender = "female"
+GROUP BY NULL
+ORDER BY details.physical.height
+LIMIT 3
+```
 
 # Overview
 
@@ -130,7 +201,7 @@ Ifrit acts on a single collection at a time and does not support joins. Therefor
 required in order to verify the request (semantically and security wise). Schemas are defined
 as JSON objects in a declarative syntaxe.
 
-Ifrit supports the following primitive types: `number`, `string`, `boolean`, `datetime`. Arrays
+Ifrit supports the following primitive types: `number`, `string`, `boolean` and `null`. Arrays
 and objects can be declared by nesting primitive types in JSON arrays `[]` or objects `{}`. 
 
 > Ifrit can only see what's defined in a schema. The compilation will fail if the request tries
@@ -149,8 +220,7 @@ and objects can be declared by nesting primitive types in JSON arrays `[]` or ob
     "items": [{
         "price": "number",
         "description": "string"
-    }],
-    "created_at": "datetime"
+    }]
 }
 ```
 
@@ -200,6 +270,7 @@ SUM      | number
   (e.g.  `SELECT AVG(items.price)`).
 
 - When no alias is specified, the property of the output schema is named after the selector.
+  (with MongoDB, `.` in names are replaced with `_`).
 
 
 

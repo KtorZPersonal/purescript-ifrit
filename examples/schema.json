@@ -1,0 +1,18 @@
+{
+    "name": "string",
+    "bad_guy": "boolean",
+    "details": {
+        "biographical": {
+            "age": "number",
+            "class": "string"
+        },
+        "physical": {
+            "gender": "string",
+            "height": "number"
+        }
+    },
+    "spells": [{
+        "name": "string",
+        "power": "number"
+    }]
+}

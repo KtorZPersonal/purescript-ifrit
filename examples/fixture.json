@@ -1,0 +1,334 @@
+[
+    {
+        "name": "vivi ornitier",
+        "bad_guy": false,
+        "details": {
+            "biographical": {
+                "age": 9,
+                "class": "sorcerer"
+            },
+            "physical": {
+                "gender": "male",
+                "height": 121
+            }
+        },
+        "spells": [
+            {
+                "name": "fire",
+                "power": 100
+            },
+            {
+                "name": "fira",
+                "power": 300
+            },
+            {
+                "name": "firaga",
+                "power": 1000
+            },
+            {
+                "name": "apocalypse",
+                "power": 3000
+            }
+        ]
+    },
+    {
+        "name": "sephiroth",
+        "bad_guy": true,
+        "details": {
+            "biographical": {
+                "age": 27,
+                "class": "soldier"
+            },
+            "physical": {
+                "gender": "male",
+                "height": 185
+            }
+        },
+        "spells": [
+            {
+                "name": "meteor",
+                "power": 1500
+            },
+            {
+                "name": "supernova",
+                "power": 4999
+            }
+        ]
+    },
+    {
+        "name": "cloud strife",
+        "bad_guy": false,
+        "details": {
+            "biographical": {
+                "age": 21,
+                "class": "soldier"
+            },
+            "physical": {
+                "gender": "male",
+                "height": 173
+            }
+        },
+        "spells": [
+            {
+                "name": "fira",
+                "power": 300
+            },
+            {
+                "name": "blizzara",
+                "power": 300
+            },
+            {
+                "name": "thundara",
+                "power": 300
+            },
+            {
+                "name": "omnislash",
+                "power": 4000
+            }
+        ]
+    },
+    {
+        "name": "kefka palazzo",
+        "bad_guy": true,
+        "details": {
+            "biographical": {
+                "age": 35,
+                "class": "soldier"
+            },
+            "physical": {
+                "gender": "male",
+                "height": 167
+            }
+        },
+        "spells": [
+            {
+                "name": "blizzara",
+                "power": 1500
+            },
+            {
+                "name": "poison",
+                "power": 1750
+            },
+            {
+                "name": "meteor",
+                "power": 4000
+            },
+            {
+                "name": "ultima",
+                "power": 5000
+            },
+            {
+                "name": "heartless angel",
+                "power": 9999
+            }
+        ]
+    },
+    {
+        "name": "strago magus",
+        "bad_guy": false,
+        "details": {
+            "biographical": {
+                "age": 70,
+                "class": "sorcerer"
+            },
+            "physical": {
+                "gender": "male",
+                "height": 151
+            }
+        },
+        "spells": [
+            {
+                "name": "firaga",
+                "power": 1750
+            },
+            {
+                "name": "blizzaga",
+                "power": 1750
+            },
+            {
+                "name": "thundaga",
+                "power": 1750
+            },
+            {
+                "name": "sabre soul",
+                "power": 3500
+            }
+        ]
+    },
+    {
+        "name": "yuna",
+        "bad_guy": false,
+        "details": {
+            "biographical": {
+                "age": 17,
+                "class": "summoner"
+            },
+            "physical": {
+                "gender": "female",
+                "height": 160
+            }
+        },
+        "spells": [
+            {
+                "name": "fira",
+                "power": 800
+            },
+            {
+                "name": "blizzara",
+                "power": 800
+            },
+            {
+                "name": "thundara",
+                "power": 800
+            },
+            {
+                "name": "sideral",
+                "power": 3250
+            }
+        ]
+    },
+    {
+        "name": "garnet til alexandros xvii",
+        "bad_guy": false,
+        "details": {
+            "biographical": {
+                "age": 16,
+                "class": "summoner"
+            },
+            "physical": {
+                "gender": "female",
+                "height": 164
+            }
+        },
+        "spells": [
+            {
+                "name": "cure",
+                "power": 200
+            },
+            {
+                "name": "cura",
+                "power": 500
+            },
+            {
+                "name": "curaga",
+                "power": 1250
+            },
+            {
+                "name": "sideral",
+                "power": 2000
+            }
+        ]
+    },
+    {
+        "name": "beatrix",
+        "bad_guy": false,
+        "details": {
+            "biographical": {
+                "age": 28,
+                "class": "soldier"
+            },
+            "physical": {
+                "gender": "female",
+                "height": 161
+            }
+        },
+        "spells": [
+            {
+                "name": "shock",
+                "power": 4999
+            },
+            {
+                "name": "thunder slash",
+                "power": 2500
+            },
+            {
+                "name": "stock break",
+                "power": 6000
+            },
+            {
+                "name": "climhazzard",
+                "power": 9999
+            }
+        ]
+    },
+    {
+        "name": "balthier",
+        "bad_guy": false,
+        "details": {
+            "biographical": {
+                "age": 23,
+                "class": "thief"
+            },
+            "physical": {
+                "gender": "male",
+                "height": 183
+            }
+        },
+        "spells": [
+            {
+                "name": "fire of wars",
+                "power": 2000
+            }
+        ]
+    },
+    {
+        "name": "zidane tribal",
+        "bad_guy": false,
+        "details": {
+            "biographical": {
+                "age": 16,
+                "class": "thief"
+            },
+            "physical": {
+                "gender": "male",
+                "height": 173
+            }
+        },
+        "spells": [
+            {
+                "name": "free energy",
+                "power": 1000
+            },
+            {
+                "name": "stelar circle 5",
+                "power": 2400
+            },
+            {
+                "name": "solution 9",
+                "power": 4800
+            }
+        ]
+    },
+    {
+        "name": "ultimecia",
+        "bad_guy": true,
+        "details": {
+            "biographical": {
+                "age": 42,
+                "class": "sorcerer"
+            },
+            "physical": {
+                "gender": "female",
+                "height": 168
+            }
+        },
+        "spells": [
+            {
+                "name": "quake",
+                "power": 3400
+            },
+            {
+                "name": "ultima",
+                "power": 5000
+            },
+            {
+                "name": "meteor",
+                "power": 7500
+            },
+            {
+                "name": "shockwave pulsar",
+                "power": 9999
+            }
+        ]
+    }
+]
